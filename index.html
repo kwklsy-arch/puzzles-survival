@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 /**
- * 終極修復版本：
- * 1. 強化 Auth 與 Firestore 啟動順序。
- * 2. 增加 Loading 狀態防止資料覆蓋。
- * 3. 優化換日邏輯與資料持久化。
+ * 終極修復版本 (符合 Firestore Rule 1 規範)：
+ * 1. 修正路徑：必須使用 /artifacts/{appId}/public/data/{collectionName}
+ * 2. 強化初始化邏輯。
+ * 3. 確保資料能正確寫入與讀取。
  */
 
-// 自定義 SVG 圖標組件
 const Icons = {
   Check: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
   Rotate: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>,
@@ -22,7 +21,6 @@ const Icons = {
   Loader: () => <svg className="animate-spin" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line></svg>
 };
 
-// 初始資料集
 const defaultData = [
   { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: true, ops: true, event: true, water: true, pack: '23', mine1: '25' },
   { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: true, ops: true, event: true, water: true, pack: '10', mine1: '25' },
@@ -50,7 +48,7 @@ const defaultColumns = [
   { key: 'mine1', label: '黃金礦', type: 'number' },
 ];
 
-// 初始化 Firebase (移至組件外部)
+// Firebase 初始化
 const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -68,10 +66,9 @@ export default function App() {
   const [importText, setImportText] = useState('');
   const [notification, setNotification] = useState('');
 
-  // 防止初次載入覆蓋資料的旗標
   const isInitialized = useRef(false);
 
-  // 1. 認證初始化 (Rule 3)
+  // 1. 認證流程 (Rule 3)
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -92,12 +89,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. 數據監聽 (Rule 1 & 2)
+  // 2. 數據監聽 (符合 Rule 1 規範的路徑)
   useEffect(() => {
     if (!user) return;
     
     setSyncStatus('syncing');
-    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'puzzlesData');
+    // 重要：路徑必須嚴格遵循 /artifacts/{appId}/public/data/{collectionName}/{docId}
+    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProgress', user.uid);
     
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -106,7 +104,7 @@ export default function App() {
         if (data.appTitle) setAppTitle(data.appTitle);
         if (data.taskColumns) setTaskColumns(data.taskColumns);
       } else {
-        // 如果雲端沒資料，寫入預設值
+        // 初始化雲端資料
         setAccounts(defaultData);
         setDoc(docRef, { 
           accounts: defaultData, 
@@ -118,15 +116,20 @@ export default function App() {
       setLoading(false);
       setSyncStatus('synced');
     }, (error) => {
-      console.error("Firestore Error", error);
+      console.error("Firestore Permission/Error", error);
       setSyncStatus('offline');
       setLoading(false);
+      // 如果權限失敗，至少顯示預設資料
+      if (!isInitialized.current) {
+        setAccounts(defaultData);
+        isInitialized.current = true;
+      }
     });
     
     return () => unsubscribe();
   }, [user]);
 
-  // 3. 儲存邏輯
+  // 3. 儲存數據
   const saveData = async (newAccounts, newTitle, newColumns) => {
     if (!isInitialized.current) return;
 
@@ -141,7 +144,7 @@ export default function App() {
     if (user) {
       setSyncStatus('syncing');
       try {
-        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'puzzlesData');
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProgress', user.uid);
         await setDoc(docRef, { 
           accounts: currentAccounts, 
           appTitle: currentTitle,
@@ -180,14 +183,14 @@ export default function App() {
   const addAccount = () => {
     const newId = Date.now().toString();
     saveData([...accounts, {
-      id: newId, name: '新帳號',
+      id: newId, name: '新角色',
       daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: ''
     }]);
   };
 
   const deleteAccount = (id) => {
     saveData(accounts.filter(acc => acc.id !== id));
-    showNotify('帳號已刪除');
+    showNotify('已移除角色');
   };
 
   const resetDaily = () => {
@@ -211,7 +214,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-pink-50 text-pink-500 gap-4">
         <Icons.Loader />
-        <p className="font-bold animate-pulse">正在載入雲端資料...</p>
+        <p className="font-bold animate-pulse text-sm">正在初始化資料庫連結...</p>
       </div>
     );
   }
@@ -226,7 +229,6 @@ export default function App() {
       )}
 
       <div className="max-w-6xl mx-auto space-y-4">
-        {/* 控制欄 */}
         <div className="flex items-center justify-between gap-2 bg-white/80 backdrop-blur-md px-4 py-3 rounded-2xl shadow-sm border border-pink-100 sticky top-0 z-50">
           <div className="flex items-center gap-2 flex-1 overflow-hidden">
             <input
@@ -251,7 +253,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 電腦版表格 */}
+        {/* 電腦版 */}
         <div className="hidden md:block bg-white/50 backdrop-blur-sm rounded-3xl shadow-xl border border-pink-50 overflow-hidden">
           <div className="overflow-x-auto max-h-[75vh]">
             <table className="w-full text-left border-collapse">
@@ -302,7 +304,6 @@ export default function App() {
                               className="w-10 bg-white border border-pink-50 rounded-lg py-1 text-center text-pink-600 font-mono text-xs focus:ring-1 focus:ring-pink-300"
                               placeholder="-"
                             />
-                            <span className="text-[10px] text-slate-300">D</span>
                           </div>
                         )}
                       </td>
@@ -319,7 +320,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* 手機版卡片 */}
+        {/* 手機版 */}
         <div className="md:hidden space-y-3 pb-24">
           {accounts.map((acc) => (
             <div key={acc.id} className="bg-white rounded-3xl p-4 shadow-sm border border-pink-50">
@@ -337,7 +338,6 @@ export default function App() {
                   <Icons.Trash />
                 </button>
               </div>
-
               <div className="grid grid-cols-3 gap-2">
                 {taskColumns.map(col => (
                   <div key={col.key} className="flex flex-col items-center p-2 rounded-2xl bg-slate-50/50 border border-slate-100/50">
@@ -352,16 +352,13 @@ export default function App() {
                         {acc[col.key] && <Icons.Check />}
                       </button>
                     ) : (
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={acc[col.key] || ''}
-                          onChange={(e) => updateNumber(acc.id, col.key, e.target.value)}
-                          className="w-12 bg-white border border-slate-200 rounded-lg py-1.5 text-center text-pink-600 font-mono text-xs"
-                          placeholder="-"
-                        />
-                        <span className="absolute -right-1.5 -top-1.5 bg-pink-100 text-pink-500 text-[8px] px-1 rounded-full font-bold">D</span>
-                      </div>
+                      <input
+                        type="text"
+                        value={acc[col.key] || ''}
+                        onChange={(e) => updateNumber(acc.id, col.key, e.target.value)}
+                        className="w-12 bg-white border border-slate-200 rounded-lg py-1.5 text-center text-pink-600 font-mono text-xs"
+                        placeholder="-"
+                      />
                     )}
                   </div>
                 ))}
@@ -370,17 +367,15 @@ export default function App() {
           ))}
         </div>
 
-        {/* 增加帳號按鈕 (桌機版底部) */}
         <div className="hidden md:flex justify-center py-4">
            <button 
              onClick={addAccount}
              className="bg-white hover:bg-pink-50 text-pink-500 border-2 border-dashed border-pink-200 px-12 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all"
            >
-             <Icons.Plus /> 新增追蹤角色
+             <Icons.Plus /> 新增角色
            </button>
         </div>
 
-        {/* 浮動新增按鈕 (手機) */}
         <div className="md:hidden fixed bottom-6 right-6 z-50">
           <button 
             onClick={addAccount}
@@ -391,7 +386,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* 匯入/備份 彈窗 */}
       {showImportModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -406,13 +400,12 @@ export default function App() {
                 className="w-full h-48 bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-pink-200"
                 placeholder='在此貼上備份 JSON 代碼...'
               ></textarea>
-              <p className="mt-2 text-[10px] text-slate-400">提示：您可以複製目前的資料庫內容作為離線備份。</p>
             </div>
             <div className="flex gap-2 p-4 bg-slate-50">
               <button 
                 onClick={() => {
                   setImportText(JSON.stringify({ accounts, appTitle, taskColumns }));
-                  showNotify('已生成備份代碼！');
+                  showNotify('已複製備份代碼！');
                 }} 
                 className="flex-1 py-3 text-pink-600 font-bold text-sm bg-white rounded-xl border border-pink-100"
               >

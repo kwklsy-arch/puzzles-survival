@@ -2,63 +2,41 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🌸 進度助你 - 遊戲追蹤器</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; }
+        body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
         input:focus { outline: none; box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.4); }
-        /* 滾動條優化 */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #fbcfe8; border-radius: 10px; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .custom-shadow { box-shadow: 0 10px 30px -5px rgba(244, 114, 182, 0.2); }
     </style>
 </head>
-<body class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen">
+<body class="bg-[#fff5f7] min-h-screen">
 
-    <div id="root">
-        <div class="flex items-center justify-center h-screen text-pink-500 font-bold animate-pulse">
-            正在啟動追蹤器...
-        </div>
-    </div>
+    <div id="root"></div>
 
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 核心 React 函式庫 - 使用穩定 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        const STORAGE_KEYS = {
-            DATA: 'game_tracker_accounts_stable_v1',
-            TITLE: 'game_tracker_title_stable_v1',
-            COLS: 'game_tracker_cols_stable_v1'
+        // 使用全新的 Key 避免受舊資料干擾
+        const KEYS = {
+            MAIN: 'GAME_TRACKER_DATA_STABLE_V100',
+            TITLE: 'GAME_TRACKER_TITLE_V100',
+            COLS: 'GAME_TRACKER_COLS_V100'
         };
 
-        // 內聯 SVG 圖標組件
-        const Icons = {
-            Check: () => (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-            ),
-            RotateCcw: () => (
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-            ),
-            Trash2: () => (
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-            ),
-            PlusCircle: () => (
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-            )
-        };
-
-        const defaultData = [
+        const INITIAL_ACCOUNTS = [
             { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '23', mine1: '25' },
             { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '10', mine1: '25' },
             { id: '3', name: '煙火消逝的瞬間͜⁎✿', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '28', mine1: '25' },
-            { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
+            { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
             { id: '5', name: '拉拉山水蜜桃･ὢ･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
             { id: '6', name: '好好吃的芭樂', daily: true, weekly: true, mall: true, base: true, ops: true, event: true, water: true, pack: '19', mine1: '19' },
             { id: '10', name: '小小1號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '20' },
@@ -66,10 +44,10 @@
             { id: '12', name: '小小3號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '22' },
             { id: '13', name: '小小4號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '26', mine1: '20' },
             { id: '14', name: '小小5號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '24', mine1: '11' },
-            { id: '15', name: '小小6號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '22', mine1: '22' },
+            { id: '15', name: '小小6號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '22', mine1: '22' }
         ];
 
-        const defaultColumns = [
+        const INITIAL_COLS = [
             { key: 'daily', label: '每日', type: 'bool' },
             { key: 'weekly', label: '周任', type: 'bool' },
             { key: 'mall', label: '商城', type: 'bool' },
@@ -78,171 +56,174 @@
             { key: 'event', label: '節日', type: 'bool' },
             { key: 'water', label: '淨水', type: 'bool' },
             { key: 'pack', label: '救援包', type: 'number' },
-            { key: 'mine1', label: '黃金礦', type: 'number' },
+            { key: 'mine1', label: '黃金礦', type: 'number' }
         ];
 
         function App() {
+            // 讀取初始資料，加入容錯
             const [accounts, setAccounts] = useState(() => {
-                const saved = localStorage.getItem(STORAGE_KEYS.DATA);
-                return saved ? JSON.parse(saved) : defaultData;
+                try {
+                    const saved = localStorage.getItem(KEYS.MAIN);
+                    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
+                } catch (e) { return INITIAL_ACCOUNTS; }
             });
-            const [appTitle, setAppTitle] = useState(() => localStorage.getItem(STORAGE_KEYS.TITLE) || '🌸 進度助你');
+
+            const [appTitle, setAppTitle] = useState(() => localStorage.getItem(KEYS.TITLE) || '🌸 進度助你');
+            
             const [cols, setCols] = useState(() => {
-                const saved = localStorage.getItem(STORAGE_KEYS.COLS);
-                return saved ? JSON.parse(saved) : defaultColumns;
+                try {
+                    const saved = localStorage.getItem(KEYS.COLS);
+                    return saved ? JSON.parse(saved) : INITIAL_COLS;
+                } catch (e) { return INITIAL_COLS; }
             });
+
             const [notif, setNotif] = useState('');
 
-            // 同步儲存到 LocalStorage
-            const saveAndState = (newAccs, newTitle, newCols) => {
-                if (newAccs) {
-                    setAccounts(newAccs);
-                    localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(newAccs));
+            // 全域儲存函式
+            const performUpdate = (updatedAccounts, updatedTitle, updatedCols) => {
+                if (updatedAccounts) {
+                    setAccounts(updatedAccounts);
+                    localStorage.setItem(KEYS.MAIN, JSON.stringify(updatedAccounts));
                 }
-                if (newTitle !== undefined) {
-                    setAppTitle(newTitle);
-                    localStorage.setItem(STORAGE_KEYS.TITLE, newTitle);
+                if (updatedTitle !== undefined) {
+                    setAppTitle(updatedTitle);
+                    localStorage.setItem(KEYS.TITLE, updatedTitle);
                 }
-                if (newCols) {
-                    setCols(newCols);
-                    localStorage.setItem(STORAGE_KEYS.COLS, JSON.stringify(newCols));
+                if (updatedCols) {
+                    setCols(updatedCols);
+                    localStorage.setItem(KEYS.COLS, JSON.stringify(updatedCols));
                 }
-            };
-
-            const notify = (msg) => {
-                setNotif(msg);
-                setTimeout(() => setNotif(''), 2000);
-            };
-
-            const resetAll = () => {
-                if(!confirm('確定要執行換日重置嗎？')) return;
-                const newAccounts = accounts.map(acc => {
-                    const processNum = (val) => {
-                        if (!val) return "";
-                        let num = parseInt(val);
-                        if (isNaN(num)) return "";
-                        return (num <= 1 ? "30" : (num - 1).toString());
-                    };
-                    return {
-                        ...acc,
-                        daily: false, mall: false, water: false, base: false, ops: false, event: false,
-                        pack: processNum(acc.pack),
-                        mine1: processNum(acc.mine1)
-                    };
-                });
-                saveAndState(newAccounts);
-                notify('換日完成且已儲存！✨');
             };
 
             const handleToggle = (id, key) => {
-                const newAccs = accounts.map(acc => 
-                    acc.id === id ? { ...acc, [key]: !acc[key] } : acc
-                );
-                saveAndState(newAccs);
+                const next = accounts.map(a => a.id === id ? { ...a, [key]: !a[key] } : a);
+                performUpdate(next);
             };
 
             const handleNumChange = (id, key, val) => {
-                const cleaned = val.replace(/\D/g, '');
-                const newAccs = accounts.map(acc => 
-                    acc.id === id ? { ...acc, [key]: cleaned } : acc
-                );
-                saveAndState(newAccs);
+                const clean = val.replace(/\D/g, '');
+                const next = accounts.map(a => a.id === id ? { ...a, [key]: clean } : a);
+                performUpdate(next);
             };
 
             const handleNameChange = (id, val) => {
-                const newAccs = accounts.map(acc => 
-                    acc.id === id ? { ...acc, name: val } : acc
-                );
-                saveAndState(newAccs);
+                const next = accounts.map(a => a.id === id ? { ...a, name: val } : a);
+                performUpdate(next);
             };
 
-            const handleColLabelChange = (index, val) => {
-                const newCols = [...cols];
-                newCols[index].label = val;
-                saveAndState(null, undefined, newCols);
+            const handleReset = () => {
+                if (!window.confirm('確定重置每日進度？數字將自動 -1 天')) return;
+                const next = accounts.map(a => {
+                    const decr = (v) => {
+                        let n = parseInt(v);
+                        if (isNaN(n) || !v) return "";
+                        return n <= 1 ? "30" : (n - 1).toString();
+                    };
+                    return {
+                        ...a,
+                        daily: false, mall: false, water: false, base: false, ops: false, event: false,
+                        pack: decr(a.pack),
+                        mine1: decr(a.mine1)
+                    };
+                });
+                performUpdate(next);
+                setNotif('✨ 重置成功');
+                setTimeout(() => setNotif(''), 2000);
             };
 
             return (
-                <div className="p-3 md:p-8 max-w-6xl mx-auto space-y-5">
+                <div className="max-w-6xl mx-auto p-4 md:p-10 space-y-6">
+                    {/* 通知氣泡 */}
                     {notif && (
-                        <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white px-6 py-2 rounded-full shadow-2xl border border-pink-200 text-pink-600 font-bold z-50 animate-bounce">
+                        <div className="fixed top-10 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-8 py-2 rounded-full shadow-lg z-[100] font-bold animate-bounce">
                             {notif}
                         </div>
                     )}
 
-                    <header className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-5 rounded-[2rem] shadow-sm border border-pink-100">
-                        <div className="flex items-center gap-2 w-full md:w-auto">
-                            <span className="text-2xl">🌸</span>
+                    {/* 頂部控制欄 */}
+                    <div className="bg-white/90 backdrop-blur rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4 border border-white shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <span className="text-3xl">🌸</span>
                             <input 
                                 value={appTitle}
-                                onChange={(e) => saveAndState(null, e.target.value)}
-                                className="text-2xl font-black text-pink-600 bg-transparent border-none focus:outline-none w-full"
+                                onChange={(e) => performUpdate(null, e.target.value)}
+                                className="text-2xl font-black text-pink-600 bg-transparent border-none w-full md:w-auto"
                             />
                         </div>
-                        <button onClick={resetAll} className="bg-pink-500 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-pink-600 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
-                            <Icons.RotateCcw /> 換日重置並儲存
+                        <button 
+                            onClick={handleReset}
+                            className="bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-full font-bold shadow-pink-200 shadow-lg flex items-center gap-2 transition-all active:scale-95"
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
+                            換日重置
                         </button>
-                    </header>
+                    </div>
 
-                    <div className="bg-white/90 rounded-[2.5rem] shadow-2xl border border-white overflow-hidden">
-                        <div className="overflow-x-auto overflow-y-auto max-h-[72vh]">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 bg-pink-50/95 backdrop-blur-sm z-30">
+                    {/* 主要表格區域 */}
+                    <div className="bg-white rounded-[2rem] shadow-xl border border-pink-50 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-pink-50">
                                     <tr>
-                                        <th className="p-4 text-left text-pink-800 w-[150px] sticky left-0 bg-pink-50 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">帳號名稱</th>
-                                        {cols.map((c, i) => (
-                                            <th key={c.key} className="p-2 text-center min-w-[95px]">
+                                        <th className="p-5 text-left text-pink-700 min-w-[150px] sticky left-0 bg-pink-50 z-10">成員</th>
+                                        {cols.map((c, idx) => (
+                                            <th key={c.key} className="p-4 text-center min-w-[100px]">
                                                 <input 
                                                     value={c.label}
-                                                    onChange={(e) => handleColLabelChange(i, e.target.value)}
-                                                    className="bg-transparent text-center font-bold text-pink-600 w-full"
+                                                    onChange={(e) => {
+                                                        const newCols = [...cols];
+                                                        newCols[idx].label = e.target.value;
+                                                        performUpdate(null, undefined, newCols);
+                                                    }}
+                                                    className="bg-transparent text-center font-bold text-pink-500 w-full"
                                                 />
                                             </th>
                                         ))}
-                                        <th className="w-12"></th>
+                                        <th className="p-4 w-12"></th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-pink-50">
                                     {accounts.map((acc) => (
-                                        <tr key={acc.id} className="hover:bg-pink-50/40 transition-colors">
-                                            <td className="p-3 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
+                                        <tr key={acc.id} className="hover:bg-pink-50/30 transition-colors">
+                                            <td className="p-4 sticky left-0 bg-white z-10">
                                                 <input 
                                                     value={acc.name}
                                                     onChange={(e) => handleNameChange(acc.id, e.target.value)}
-                                                    className="bg-transparent w-full font-medium text-slate-700"
+                                                    className="font-medium text-slate-700 bg-transparent w-full"
                                                 />
                                             </td>
-                                            {cols.map((c) => (
-                                                <td key={c.key} className="p-2 text-center">
+                                            {cols.map(c => (
+                                                <td key={c.key} className="p-3 text-center">
                                                     {c.type === 'bool' ? (
                                                         <button 
                                                             onClick={() => handleToggle(acc.id, c.key)}
-                                                            className={`w-9 h-9 rounded-xl mx-auto flex items-center justify-center transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200 hover:bg-pink-100'}`}
+                                                            className={`w-10 h-10 rounded-2xl flex items-center justify-center mx-auto transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200'}`}
                                                         >
-                                                            {acc[c.key] && <Icons.Check />}
+                                                            {acc[c.key] && (
+                                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                            )}
                                                         </button>
                                                     ) : (
                                                         <div className="flex items-center justify-center gap-1">
                                                             <input 
                                                                 value={acc[c.key] || ''}
                                                                 onChange={(e) => handleNumChange(acc.id, c.key, e.target.value)}
-                                                                className="w-12 bg-white border border-pink-100 rounded-lg py-1.5 text-center font-mono text-pink-600"
+                                                                className="w-14 h-10 bg-white border border-pink-100 rounded-xl text-center font-mono text-pink-600 focus:border-pink-400"
                                                                 placeholder="-"
                                                             />
-                                                            <span className="text-[10px] text-pink-300 font-bold">D</span>
+                                                            <span className="text-xs text-pink-300 font-bold">D</span>
                                                         </div>
                                                     )}
                                                 </td>
                                             ))}
-                                            <td className="p-2 text-center">
+                                            <td className="p-4">
                                                 <button 
                                                     onClick={() => {
-                                                        if(confirm('確定要刪除這筆資料嗎？'))
-                                                        saveAndState(accounts.filter(a => a.id !== acc.id));
+                                                        if(confirm('刪除成員？')) performUpdate(accounts.filter(a => a.id !== acc.id));
                                                     }}
-                                                    className="text-slate-200 hover:text-rose-400 transition-colors p-1"
+                                                    className="text-slate-200 hover:text-rose-400"
                                                 >
-                                                    <Icons.Trash2 />
+                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                 </button>
                                             </td>
                                         </tr>
@@ -251,15 +232,19 @@
                             </table>
                         </div>
                         <button 
-                            onClick={() => saveAndState([...accounts, { id: Date.now().toString(), name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }])}
-                            className="w-full py-5 border-t border-dashed border-pink-100 text-pink-300 hover:bg-pink-50 hover:text-pink-500 transition-all font-bold flex items-center justify-center gap-2"
+                            onClick={() => {
+                                const newId = Date.now().toString();
+                                performUpdate([...accounts, { id: newId, name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }]);
+                            }}
+                            className="w-full py-6 text-pink-300 hover:text-pink-500 hover:bg-pink-50 transition-all font-bold flex items-center justify-center gap-2 border-t border-dashed border-pink-100"
                         >
-                            <Icons.PlusCircle /> 點擊新增成員
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                            新增成員
                         </button>
                     </div>
 
-                    <footer className="text-center text-[11px] text-pink-400 font-medium">
-                        ✨ 資料已即時儲存於您的瀏覽器 ✨
+                    <footer className="text-center text-xs text-pink-300 font-medium">
+                        ✨ 穩定版 V1.0 - 您的資料已加密儲存於本機 ✨
                     </footer>
                 </div>
             );

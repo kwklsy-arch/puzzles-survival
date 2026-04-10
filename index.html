@@ -6,35 +6,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🌸 進度助你 - 遊戲追蹤器</title>
     
-    <!-- 1. 樣式與字體 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; }
-        .sticky-col { position: sticky; left: 0; z-index: 20; }
         input:focus { outline: none; box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.4); }
+        .lucide { display: inline-block; vertical-align: middle; }
+        /* 滾動條優化 */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #fbcfe8; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen">
 
     <div id="root">
-        <!-- 載入中提示：若 JavaScript 沒跑起來，這行會一直顯示 -->
         <div class="flex items-center justify-center h-screen text-pink-500 font-bold animate-pulse">
-            正在啟動追蹤器，請稍候... (若長時間未載入，請確認瀏覽器支援 JS)
+            正在啟動追蹤器...
         </div>
     </div>
 
-    <!-- 2. 核心 React 函式庫 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useCallback } = React;
 
-        // 預設資料
+        const STORAGE_KEYS = {
+            DATA: 'game_tracker_accounts_final',
+            TITLE: 'game_tracker_title_final',
+            COLS: 'game_tracker_cols_final'
+        };
+
         const defaultData = [
             { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '23', mine1: '25' },
             { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '10', mine1: '25' },
@@ -63,89 +68,123 @@
         ];
 
         function App() {
-            // 初始化狀態
             const [accounts, setAccounts] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('game_data_v2');
-                    return saved ? JSON.parse(saved) : defaultData;
-                } catch (e) { return defaultData; }
+                const saved = localStorage.getItem(STORAGE_KEYS.DATA);
+                return saved ? JSON.parse(saved) : defaultData;
             });
-            const [appTitle, setAppTitle] = useState(() => localStorage.getItem('game_title_v2') || '🌸 進度助你');
+            const [appTitle, setAppTitle] = useState(() => localStorage.getItem(STORAGE_KEYS.TITLE) || '🌸 進度助你');
             const [cols, setCols] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('game_cols_v2');
-                    return saved ? JSON.parse(saved) : defaultColumns;
-                } catch (e) { return defaultColumns; }
+                const saved = localStorage.getItem(STORAGE_KEYS.COLS);
+                return saved ? JSON.parse(saved) : defaultColumns;
             });
             const [notif, setNotif] = useState('');
 
-            // 自動儲存至本地
+            // 強制儲存函式
+            const forceSave = (newAccs, newTitle, newCols) => {
+                if (newAccs) {
+                    setAccounts(newAccs);
+                    localStorage.setItem(STORAGE_KEYS.DATA, JSON.stringify(newAccs));
+                }
+                if (newTitle !== undefined) {
+                    setAppTitle(newTitle);
+                    localStorage.setItem(STORAGE_KEYS.TITLE, newTitle);
+                }
+                if (newCols) {
+                    setCols(newCols);
+                    localStorage.setItem(STORAGE_KEYS.COLS, JSON.stringify(newCols));
+                }
+            };
+
             useEffect(() => {
-                localStorage.setItem('game_data_v2', JSON.stringify(accounts));
-                localStorage.setItem('game_title_v2', appTitle);
-                localStorage.setItem('game_cols_v2', JSON.stringify(cols));
-                // 每次渲染更新圖標
                 if (window.lucide) window.lucide.createIcons();
-            }, [accounts, appTitle, cols]);
+            }, [accounts, cols, notif]);
 
             const notify = (msg) => {
                 setNotif(msg);
-                setTimeout(() => setNotif(''), 2500);
+                setTimeout(() => setNotif(''), 2000);
             };
 
             const resetAll = () => {
                 if(!confirm('確定要執行換日重置嗎？')) return;
-                setAccounts(prev => prev.map(acc => ({
-                    ...acc,
-                    daily: false, mall: false, water: false, base: false, ops: false, event: false,
-                    pack: acc.pack ? (parseInt(acc.pack) <= 1 ? "30" : (parseInt(acc.pack)-1).toString()) : "",
-                    mine1: acc.mine1 ? (parseInt(acc.mine1) <= 1 ? "30" : (parseInt(acc.mine1)-1).toString()) : "",
-                })));
-                notify('換日完成！下次努力 ✨');
+                const newAccounts = accounts.map(acc => {
+                    const processNum = (val) => {
+                        if (!val) return "";
+                        let num = parseInt(val);
+                        if (isNaN(num)) return "";
+                        return (num <= 1 ? "30" : (num - 1).toString());
+                    };
+                    return {
+                        ...acc,
+                        daily: false, mall: false, water: false, base: false, ops: false, event: false,
+                        pack: processNum(acc.pack),
+                        mine1: processNum(acc.mine1)
+                    };
+                });
+                forceSave(newAccounts);
+                notify('換日完成且已存檔！✨');
+            };
+
+            const handleToggle = (id, key) => {
+                const newAccs = accounts.map(acc => 
+                    acc.id === id ? { ...acc, [key]: !acc[key] } : acc
+                );
+                forceSave(newAccs);
+            };
+
+            const handleNumChange = (id, key, val) => {
+                const cleaned = val.replace(/\D/g, '');
+                const newAccs = accounts.map(acc => 
+                    acc.id === id ? { ...acc, [key]: cleaned } : acc
+                );
+                forceSave(newAccs);
+            };
+
+            const handleNameChange = (id, val) => {
+                const newAccs = accounts.map(acc => 
+                    acc.id === id ? { ...acc, name: val } : acc
+                );
+                forceSave(newAccs);
+            };
+
+            const handleColLabelChange = (index, val) => {
+                const newCols = [...cols];
+                newCols[index].label = val;
+                forceSave(null, undefined, newCols);
             };
 
             return (
                 <div className="p-3 md:p-8 max-w-6xl mx-auto space-y-5">
-                    {/* 通知氣泡 */}
                     {notif && (
                         <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white px-6 py-2 rounded-full shadow-2xl border border-pink-200 text-pink-600 font-bold z-50 animate-bounce">
                             {notif}
                         </div>
                     )}
 
-                    {/* 標頭 */}
                     <header className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-5 rounded-[2rem] shadow-sm border border-pink-100">
                         <div className="flex items-center gap-2 w-full md:w-auto">
                             <span className="text-2xl">🌸</span>
                             <input 
                                 value={appTitle}
-                                onChange={(e) => setAppTitle(e.target.value)}
+                                onChange={(e) => forceSave(null, e.target.value)}
                                 className="text-2xl font-black text-pink-600 bg-transparent border-none focus:outline-none w-full"
                             />
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={resetAll} className="bg-pink-500 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-pink-600 active:scale-95 transition-all flex items-center gap-2">
-                                <i data-lucide="rotate-ccw" className="w-4 h-4"></i> 換日重置
-                            </button>
-                        </div>
+                        <button onClick={resetAll} className="bg-pink-500 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-pink-600 active:scale-95 transition-all flex items-center gap-2 whitespace-nowrap">
+                            <i data-lucide="rotate-ccw" className="w-5 h-5"></i> 換日重置並儲存
+                        </button>
                     </header>
 
-                    {/* 主要內容區 */}
                     <div className="bg-white/90 rounded-[2.5rem] shadow-2xl border border-white overflow-hidden">
                         <div className="overflow-x-auto overflow-y-auto max-h-[72vh]">
                             <table className="w-full text-sm">
                                 <thead className="sticky top-0 bg-pink-50/95 backdrop-blur-sm z-30">
                                     <tr>
-                                        <th className="p-4 text-left text-pink-800 w-[150px] sticky left-0 bg-pink-50 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">帳號</th>
+                                        <th className="p-4 text-left text-pink-800 w-[150px] sticky left-0 bg-pink-50 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">帳號名稱</th>
                                         {cols.map((c, i) => (
-                                            <th key={i} className="p-2 text-center min-w-[85px]">
+                                            <th key={c.key} className="p-2 text-center min-w-[90px]">
                                                 <input 
                                                     value={c.label}
-                                                    onChange={(e) => {
-                                                        const newCols = [...cols];
-                                                        newCols[i].label = e.target.value;
-                                                        setCols(newCols);
-                                                    }}
+                                                    onChange={(e) => handleColLabelChange(i, e.target.value)}
                                                     className="bg-transparent text-center font-bold text-pink-600 w-full"
                                                 />
                                             </th>
@@ -154,42 +193,30 @@
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-pink-50">
-                                    {accounts.map((acc, idx) => (
+                                    {accounts.map((acc) => (
                                         <tr key={acc.id} className="hover:bg-pink-50/40 transition-colors">
                                             <td className="p-3 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
                                                 <input 
                                                     value={acc.name}
-                                                    onChange={(e) => {
-                                                        const newAccs = [...accounts];
-                                                        newAccs[idx].name = e.target.value;
-                                                        setAccounts(newAccs);
-                                                    }}
+                                                    onChange={(e) => handleNameChange(acc.id, e.target.value)}
                                                     className="bg-transparent w-full font-medium text-slate-700"
                                                 />
                                             </td>
-                                            {cols.map((c, i) => (
-                                                <td key={i} className="p-2 text-center">
+                                            {cols.map((c) => (
+                                                <td key={c.key} className="p-2 text-center">
                                                     {c.type === 'bool' ? (
                                                         <button 
-                                                            onClick={() => {
-                                                                const newAccs = [...accounts];
-                                                                newAccs[idx][c.key] = !newAccs[idx][c.key];
-                                                                setAccounts(newAccs);
-                                                            }}
-                                                            className={`w-8 h-8 rounded-xl mx-auto flex items-center justify-center transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200 hover:bg-pink-100'}`}
+                                                            onClick={() => handleToggle(acc.id, c.key)}
+                                                            className={`w-9 h-9 rounded-xl mx-auto flex items-center justify-center transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200 hover:bg-pink-100'}`}
                                                         >
                                                             {acc[c.key] && <i data-lucide="check" className="w-5 h-5 stroke-[4]"></i>}
                                                         </button>
                                                     ) : (
                                                         <div className="flex items-center justify-center gap-1">
                                                             <input 
-                                                                value={acc[c.key]}
-                                                                onChange={(e) => {
-                                                                    const newAccs = [...accounts];
-                                                                    newAccs[idx][c.key] = e.target.value.replace(/\D/g, '');
-                                                                    setAccounts(newAccs);
-                                                                }}
-                                                                className="w-12 bg-white border border-pink-100 rounded-lg py-1 text-center font-mono text-pink-600"
+                                                                value={acc[c.key] || ''}
+                                                                onChange={(e) => handleNumChange(acc.id, c.key, e.target.value)}
+                                                                className="w-12 bg-white border border-pink-100 rounded-lg py-1.5 text-center font-mono text-pink-600"
                                                                 placeholder="-"
                                                             />
                                                             <span className="text-[10px] text-pink-300">D</span>
@@ -200,8 +227,8 @@
                                             <td className="p-2">
                                                 <button 
                                                     onClick={() => {
-                                                        if(confirm('刪除這筆資料？'))
-                                                        setAccounts(accounts.filter(a => a.id !== acc.id));
+                                                        if(confirm('確定要刪除這筆資料嗎？'))
+                                                        forceSave(accounts.filter(a => a.id !== acc.id));
                                                     }}
                                                     className="text-slate-200 hover:text-rose-400 transition-colors"
                                                 >
@@ -214,15 +241,15 @@
                             </table>
                         </div>
                         <button 
-                            onClick={() => setAccounts([...accounts, { id: Date.now().toString(), name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }])}
-                            className="w-full py-4 border-t border-dashed border-pink-100 text-pink-300 hover:bg-pink-50 hover:text-pink-500 transition-all font-bold flex items-center justify-center gap-2"
+                            onClick={() => forceSave([...accounts, { id: Date.now().toString(), name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }])}
+                            className="w-full py-5 border-t border-dashed border-pink-100 text-pink-300 hover:bg-pink-50 hover:text-pink-500 transition-all font-bold flex items-center justify-center gap-2"
                         >
                             <i data-lucide="plus-circle" className="w-5 h-5"></i> 點擊新增成員
                         </button>
                     </div>
 
-                    <footer className="text-center text-[10px] text-pink-300 font-medium">
-                        資料將自動儲存於此瀏覽器中 • 若 GitHub 顯示亂碼請嘗試更換瀏覽器
+                    <footer className="text-center text-[11px] text-pink-400 font-medium">
+                        ✨ 資料已鎖定儲存於此瀏覽器 • 換日將同步減少剩餘天數 ✨
                     </footer>
                 </div>
             );
@@ -230,7 +257,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-
     </script>
 </body>
 </html>

@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 /**
- * 終極修復版本 (符合 Firestore Rule 1 規範)：
- * 1. 修正路徑：必須使用 /artifacts/{appId}/public/data/{collectionName}
- * 2. 強化初始化邏輯。
- * 3. 確保資料能正確寫入與讀取。
+ * 環境適應版本：
+ * 1. 支援 Canvas 內部環境（自動抓取環境變數）。
+ * 2. 支援外部環境（如 GitHub Pages），偵測不到變數時會改用本地模式運作。
  */
 
 const Icons = {
@@ -48,28 +47,35 @@ const defaultColumns = [
   { key: 'mine1', label: '黃金礦', type: 'number' },
 ];
 
-// Firebase 初始化
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'puzzles-survival-tracker';
+// Firebase 環境偵測與初始化
+let app, auth, db, appId;
+const hasConfig = typeof __firebase_config !== 'undefined';
+
+if (hasConfig) {
+  const firebaseConfig = JSON.parse(__firebase_config);
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  auth = getAuth(app);
+  db = getFirestore(app);
+  appId = typeof __app_id !== 'undefined' ? __app_id : 'puzzles-survival-tracker';
+}
 
 export default function App() {
-  const [accounts, setAccounts] = useState([]);
+  const [accounts, setAccounts] = useState(defaultData);
   const [appTitle, setAppTitle] = useState('🌸 末日進度追蹤');
   const [taskColumns, setTaskColumns] = useState(defaultColumns);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [syncStatus, setSyncStatus] = useState('offline');
+  const [loading, setLoading] = useState(hasConfig);
+  const [syncStatus, setSyncStatus] = useState(hasConfig ? 'offline' : 'local');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [notification, setNotification] = useState('');
 
-  const isInitialized = useRef(false);
+  const isInitialized = useRef(!hasConfig);
 
-  // 1. 認證流程 (Rule 3)
+  // 1. 認證流程 (僅在有配置時執行)
   useEffect(() => {
+    if (!hasConfig) return;
+    
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -79,6 +85,7 @@ export default function App() {
         }
       } catch (e) {
         console.error("Auth error", e);
+        setLoading(false);
       }
     };
     initAuth();
@@ -89,12 +96,11 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. 數據監聽 (符合 Rule 1 規範的路徑)
+  // 2. 數據監聽 (僅在有配置且已登入時執行)
   useEffect(() => {
-    if (!user) return;
+    if (!hasConfig || !user) return;
     
     setSyncStatus('syncing');
-    // 重要：路徑必須嚴格遵循 /artifacts/{appId}/public/data/{collectionName}/{docId}
     const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProgress', user.uid);
     
     const unsubscribe = onSnapshot(docRef, (snapshot) => {
@@ -104,26 +110,16 @@ export default function App() {
         if (data.appTitle) setAppTitle(data.appTitle);
         if (data.taskColumns) setTaskColumns(data.taskColumns);
       } else {
-        // 初始化雲端資料
-        setAccounts(defaultData);
-        setDoc(docRef, { 
-          accounts: defaultData, 
-          appTitle: '🌸 末日進度追蹤', 
-          taskColumns: defaultColumns 
-        });
+        setDoc(docRef, { accounts: defaultData, appTitle: '🌸 末日進度追蹤', taskColumns: defaultColumns });
       }
       isInitialized.current = true;
       setLoading(false);
       setSyncStatus('synced');
     }, (error) => {
-      console.error("Firestore Permission/Error", error);
+      console.error("Firestore Error", error);
       setSyncStatus('offline');
       setLoading(false);
-      // 如果權限失敗，至少顯示預設資料
-      if (!isInitialized.current) {
-        setAccounts(defaultData);
-        isInitialized.current = true;
-      }
+      isInitialized.current = true;
     });
     
     return () => unsubscribe();
@@ -131,8 +127,6 @@ export default function App() {
 
   // 3. 儲存數據
   const saveData = async (newAccounts, newTitle, newColumns) => {
-    if (!isInitialized.current) return;
-
     const currentAccounts = newAccounts || accounts;
     const currentTitle = newTitle !== undefined && newTitle !== null ? newTitle : appTitle;
     const currentColumns = newColumns || taskColumns;
@@ -141,7 +135,7 @@ export default function App() {
     setAppTitle(currentTitle);
     setTaskColumns([...currentColumns]);
 
-    if (user) {
+    if (hasConfig && user && isInitialized.current) {
       setSyncStatus('syncing');
       try {
         const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'userProgress', user.uid);
@@ -214,7 +208,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-pink-50 text-pink-500 gap-4">
         <Icons.Loader />
-        <p className="font-bold animate-pulse text-sm">正在初始化資料庫連結...</p>
+        <p className="font-bold animate-pulse text-sm">正在初始化...</p>
       </div>
     );
   }
@@ -238,6 +232,7 @@ export default function App() {
               className="bg-transparent border-none focus:outline-none text-lg md:text-xl font-black text-pink-600 w-full truncate"
             />
             {syncStatus === 'synced' && <div className="text-green-400 hidden sm:block"><Icons.Cloud /></div>}
+            {syncStatus === 'local' && <div className="text-slate-300 hidden sm:block text-[10px] font-bold px-2 py-0.5 border border-slate-200 rounded-md">LOCAL</div>}
           </div>
           
           <div className="flex items-center gap-2 shrink-0">

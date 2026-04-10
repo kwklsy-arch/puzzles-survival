@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, RotateCcw, Plus, Trash2, Copy, Info, Cloud, CloudOff, Upload, Heart, Edit2, User } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 /**
- * 響應式優化版本：
- * - 電腦端：顯示完整功能表格
- * - 手機端：切換為卡片式佈局，確保不捲動也能看完所有任務
+ * 終極穩定響應式版本：
+ * 1. 移除外部 lucide-react 依賴，改用純 SVG 避免載入錯誤導致的白屏。
+ * 2. 完美的電腦/手機切換佈局。
+ * 3. 雲端同步功能保持不變。
  */
 
-// 初始化 Firebase 服務
+// 自定義 SVG 圖標組件，確保 100% 穩定
+const Icons = {
+  Check: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+  Rotate: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>,
+  Plus: (props) => <svg width={props.size || 20} height={props.size || 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+  Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+  User: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
+  Cloud: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.7-4.2-4-4.5a7 7 0 1 0-11 8h10.5z"></path></svg>,
+  Upload: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+};
+
+// 初始化 Firebase
 let app, auth, db, appId;
 try {
   const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -19,7 +30,7 @@ try {
   db = getFirestore(app);
   appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 } catch (e) {
-  console.error("Firebase 載入失敗", e);
+  console.error("Firebase Init Error", e);
 }
 
 const defaultData = [
@@ -90,7 +101,7 @@ export default function App() {
       }
       setSyncStatus('synced');
     }, (error) => {
-      console.error("雲端載入失敗", error);
+      console.error("Firebase Sync Error", error);
       setSyncStatus('offline');
     });
     return () => unsubscribe();
@@ -177,13 +188,12 @@ export default function App() {
       
       {notification && (
         <div className="fixed top-4 right-4 z-[100] bg-pink-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-bounce text-sm">
-          <Heart size={14} fill="currentColor" />
           <span>{notification}</span>
         </div>
       )}
 
       <div className="max-w-6xl mx-auto space-y-4">
-        {/* 控制欄 - 更加緊湊 */}
+        {/* 控制欄 */}
         <div className="flex items-center justify-between gap-2 bg-white/70 backdrop-blur-md px-4 py-3 rounded-2xl shadow-sm border border-pink-200 sticky top-0 z-50">
           <div className="flex items-center gap-2 flex-1 overflow-hidden">
             <input
@@ -192,7 +202,7 @@ export default function App() {
               onChange={(e) => saveData(null, e.target.value)}
               className="bg-transparent border-none focus:outline-none text-lg md:text-xl font-black text-pink-600 w-full truncate"
             />
-            {syncStatus === 'synced' && <Cloud size={14} className="text-pink-400 shrink-0 hidden sm:block" />}
+            {syncStatus === 'synced' && <div className="text-pink-400 hidden sm:block"><Icons.Cloud /></div>}
           </div>
           
           <div className="flex items-center gap-2 shrink-0">
@@ -200,15 +210,15 @@ export default function App() {
               onClick={resetDaily}
               className="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full font-bold shadow-md transition-all active:scale-95 text-xs flex items-center gap-1"
             >
-              <RotateCcw size={14} /> 換日
+              <Icons.Rotate /> 換日
             </button>
             <button onClick={() => setShowImportModal(true)} className="p-2 text-pink-400 hover:bg-pink-100 rounded-full transition-colors">
-              <Upload size={18} />
+              <Icons.Upload />
             </button>
           </div>
         </div>
 
-        {/* 電腦版表格佈局 (md 以上顯示) */}
+        {/* 電腦版表格 */}
         <div className="hidden md:block bg-white/50 backdrop-blur-sm rounded-3xl shadow-xl border border-pink-100 overflow-hidden">
           <div className="overflow-x-auto max-h-[70vh]">
             <table className="w-full text-left border-collapse table-fixed">
@@ -248,7 +258,7 @@ export default function App() {
                               acc[col.key] ? 'bg-pink-500 text-white shadow-pink-200 scale-105' : 'bg-slate-100 text-slate-200'
                             }`}
                           >
-                            {acc[col.key] && <Check size={18} strokeWidth={4} />}
+                            {acc[col.key] && <Icons.Check />}
                           </button>
                         ) : (
                           <div className="flex items-center justify-center gap-1">
@@ -266,7 +276,7 @@ export default function App() {
                     ))}
                     <td className="px-2 text-center">
                       <button onClick={() => deleteAccount(acc.id)} className="text-slate-200 hover:text-rose-400 p-1">
-                        <Trash2 size={16} />
+                        <Icons.Trash />
                       </button>
                     </td>
                   </tr>
@@ -276,14 +286,14 @@ export default function App() {
           </div>
         </div>
 
-        {/* 手機版卡片佈局 (md 以下顯示) */}
+        {/* 手機版卡片 */}
         <div className="md:hidden space-y-4 pb-20">
           {accounts.map((acc) => (
             <div key={acc.id} className="bg-white rounded-3xl p-4 shadow-md border border-pink-50 relative overflow-hidden">
               <div className="flex items-center justify-between mb-3 border-b border-pink-50 pb-2">
                 <div className="flex items-center gap-2 flex-1">
                   <div className="bg-pink-100 p-1.5 rounded-full text-pink-500">
-                    <User size={16} />
+                    <Icons.User />
                   </div>
                   <input
                     type="text"
@@ -293,15 +303,14 @@ export default function App() {
                   />
                 </div>
                 <button onClick={() => deleteAccount(acc.id)} className="text-slate-200 p-1 ml-2">
-                  <Trash2 size={16} />
+                  <Icons.Trash />
                 </button>
               </div>
 
-              {/* 手機任務網格 - 改為多欄緊湊排列 */}
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {taskColumns.map(col => (
                   <div key={col.key} className="flex flex-col items-center p-2 rounded-2xl bg-pink-50/30 border border-pink-50/50">
-                    <span className="text-[10px] text-pink-400 font-bold mb-1">{col.label}</span>
+                    <span className="text-[10px] text-pink-400 font-bold mb-1 truncate w-full text-center">{col.label}</span>
                     {col.type === 'bool' ? (
                       <button
                         onClick={() => toggleBool(acc.id, col.key)}
@@ -309,7 +318,7 @@ export default function App() {
                           acc[col.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-white border border-pink-100 text-slate-100'
                         }`}
                       >
-                        {acc[col.key] && <Check size={18} strokeWidth={4} />}
+                        {acc[col.key] && <Icons.Check />}
                       </button>
                     ) : (
                       <div className="relative">
@@ -328,22 +337,15 @@ export default function App() {
               </div>
             </div>
           ))}
-          
-          <button
-            onClick={addAccount}
-            className="w-full py-4 border-2 border-dashed border-pink-200 text-pink-300 rounded-3xl hover:bg-pink-50 flex items-center justify-center gap-2 font-bold transition-all"
-          >
-            <Plus size={20} /> 增加新帳號
-          </button>
         </div>
 
-        {/* 底部浮動新增按鈕 (僅手機顯示) */}
+        {/* 浮動新增按鈕 (手機) */}
         <div className="md:hidden fixed bottom-6 right-6 z-50">
           <button 
             onClick={addAccount}
             className="w-14 h-14 bg-pink-500 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
           >
-            <Plus size={28} strokeWidth={3} />
+            <Icons.Plus size={28} />
           </button>
         </div>
       </div>
@@ -351,19 +353,18 @@ export default function App() {
       {/* 匯入彈窗 */}
       {showImportModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
             <div className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Upload className="text-pink-500" size={20} />
-                <h3 className="text-lg font-bold text-slate-800">資料匯入 / 備份</h3>
+              <div className="flex items-center gap-2 mb-4 text-pink-500 font-bold">
+                <Icons.Upload />
+                <h3>資料匯入 / 備份</h3>
               </div>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
-                className="w-full h-40 bg-pink-50 border border-pink-100 rounded-2xl p-4 text-xs font-mono focus:ring-2 focus:ring-pink-200 focus:outline-none"
-                placeholder='請在此貼上備份資料...'
+                className="w-full h-40 bg-pink-50 border border-pink-100 rounded-2xl p-4 text-xs font-mono focus:outline-none"
+                placeholder='在此貼上備份資料...'
               ></textarea>
-              <p className="text-[10px] text-slate-400 mt-2 text-center">提示：您可以將這裡的內容複製出來作為手動備份。</p>
             </div>
             <div className="flex gap-2 p-4 bg-pink-50/50">
               <button onClick={() => setShowImportModal(false)} className="flex-1 py-3 text-slate-500 font-bold text-sm">取消</button>
@@ -377,7 +378,7 @@ export default function App() {
                      showNotify('匯入完成！✨');
                    } catch(e) { showNotify('格式錯誤 ❌'); }
                 }} 
-                className="flex-[2] py-3 bg-pink-500 text-white rounded-2xl font-bold shadow-lg shadow-pink-100 text-sm"
+                className="flex-[2] py-3 bg-pink-500 text-white rounded-2xl font-bold shadow-lg text-sm"
               >
                 確認匯入
               </button>

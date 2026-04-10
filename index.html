@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌸 進度助你 - 遊戲追蹤器</title>
+    
+    <!-- 1. 樣式與字體 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .sticky-col { position: sticky; left: 0; z-index: 20; }
+        input:focus { outline: none; box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.4); }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-rose-50 to-pink-100 min-h-screen">
+
+    <div id="root">
+        <!-- 載入中提示：若 JavaScript 沒跑起來，這行會一直顯示 -->
+        <div class="flex items-center justify-center h-screen text-pink-500 font-bold animate-pulse">
+            正在啟動追蹤器，請稍候... (若長時間未載入，請確認瀏覽器支援 JS)
+        </div>
+    </div>
+
+    <!-- 2. 核心 React 函式庫 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 預設資料
+        const defaultData = [
+            { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '23', mine1: '25' },
+            { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '10', mine1: '25' },
+            { id: '3', name: '煙火消逝的瞬間͜⁎✿', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '28', mine1: '25' },
+            { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
+            { id: '5', name: '拉拉山水蜜桃･ὢ･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
+            { id: '6', name: '好好吃的芭樂', daily: true, weekly: true, mall: true, base: true, ops: true, event: true, water: true, pack: '19', mine1: '19' },
+            { id: '10', name: '小小1號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '20' },
+            { id: '11', name: '小小2號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '6', mine1: '20' },
+            { id: '12', name: '小小3號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '22' },
+            { id: '13', name: '小小4號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '26', mine1: '20' },
+            { id: '14', name: '小小5號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '24', mine1: '11' },
+            { id: '15', name: '小小6號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '22', mine1: '22' },
+        ];
+
+        const defaultColumns = [
+            { key: 'daily', label: '每日', type: 'bool' },
+            { key: 'weekly', label: '周任', type: 'bool' },
+            { key: 'mall', label: '商城', type: 'bool' },
+            { key: 'base', label: '基地', type: 'bool' },
+            { key: 'ops', label: '特作', type: 'bool' },
+            { key: 'event', label: '節日', type: 'bool' },
+            { key: 'water', label: '淨水', type: 'bool' },
+            { key: 'pack', label: '救援包', type: 'number' },
+            { key: 'mine1', label: '黃金礦', type: 'number' },
+        ];
+
+        function App() {
+            // 初始化狀態
+            const [accounts, setAccounts] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('game_data_v2');
+                    return saved ? JSON.parse(saved) : defaultData;
+                } catch (e) { return defaultData; }
+            });
+            const [appTitle, setAppTitle] = useState(() => localStorage.getItem('game_title_v2') || '🌸 進度助你');
+            const [cols, setCols] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('game_cols_v2');
+                    return saved ? JSON.parse(saved) : defaultColumns;
+                } catch (e) { return defaultColumns; }
+            });
+            const [notif, setNotif] = useState('');
+
+            // 自動儲存至本地
+            useEffect(() => {
+                localStorage.setItem('game_data_v2', JSON.stringify(accounts));
+                localStorage.setItem('game_title_v2', appTitle);
+                localStorage.setItem('game_cols_v2', JSON.stringify(cols));
+                // 每次渲染更新圖標
+                if (window.lucide) window.lucide.createIcons();
+            }, [accounts, appTitle, cols]);
+
+            const notify = (msg) => {
+                setNotif(msg);
+                setTimeout(() => setNotif(''), 2500);
+            };
+
+            const resetAll = () => {
+                if(!confirm('確定要執行換日重置嗎？')) return;
+                setAccounts(prev => prev.map(acc => ({
+                    ...acc,
+                    daily: false, mall: false, water: false, base: false, ops: false, event: false,
+                    pack: acc.pack ? (parseInt(acc.pack) <= 1 ? "30" : (parseInt(acc.pack)-1).toString()) : "",
+                    mine1: acc.mine1 ? (parseInt(acc.mine1) <= 1 ? "30" : (parseInt(acc.mine1)-1).toString()) : "",
+                })));
+                notify('換日完成！下次努力 ✨');
+            };
+
+            return (
+                <div className="p-3 md:p-8 max-w-6xl mx-auto space-y-5">
+                    {/* 通知氣泡 */}
+                    {notif && (
+                        <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white px-6 py-2 rounded-full shadow-2xl border border-pink-200 text-pink-600 font-bold z-50 animate-bounce">
+                            {notif}
+                        </div>
+                    )}
+
+                    {/* 標頭 */}
+                    <header className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-5 rounded-[2rem] shadow-sm border border-pink-100">
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <span className="text-2xl">🌸</span>
+                            <input 
+                                value={appTitle}
+                                onChange={(e) => setAppTitle(e.target.value)}
+                                className="text-2xl font-black text-pink-600 bg-transparent border-none focus:outline-none w-full"
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={resetAll} className="bg-pink-500 text-white px-6 py-2.5 rounded-full font-bold shadow-lg shadow-pink-200 hover:bg-pink-600 active:scale-95 transition-all flex items-center gap-2">
+                                <i data-lucide="rotate-ccw" className="w-4 h-4"></i> 換日重置
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* 主要內容區 */}
+                    <div className="bg-white/90 rounded-[2.5rem] shadow-2xl border border-white overflow-hidden">
+                        <div className="overflow-x-auto overflow-y-auto max-h-[72vh]">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 bg-pink-50/95 backdrop-blur-sm z-30">
+                                    <tr>
+                                        <th className="p-4 text-left text-pink-800 w-[150px] sticky left-0 bg-pink-50 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">帳號</th>
+                                        {cols.map((c, i) => (
+                                            <th key={i} className="p-2 text-center min-w-[85px]">
+                                                <input 
+                                                    value={c.label}
+                                                    onChange={(e) => {
+                                                        const newCols = [...cols];
+                                                        newCols[i].label = e.target.value;
+                                                        setCols(newCols);
+                                                    }}
+                                                    className="bg-transparent text-center font-bold text-pink-600 w-full"
+                                                />
+                                            </th>
+                                        ))}
+                                        <th className="w-12"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-pink-50">
+                                    {accounts.map((acc, idx) => (
+                                        <tr key={acc.id} className="hover:bg-pink-50/40 transition-colors">
+                                            <td className="p-3 sticky left-0 bg-white shadow-[2px_0_5px_rgba(0,0,0,0.02)] z-10">
+                                                <input 
+                                                    value={acc.name}
+                                                    onChange={(e) => {
+                                                        const newAccs = [...accounts];
+                                                        newAccs[idx].name = e.target.value;
+                                                        setAccounts(newAccs);
+                                                    }}
+                                                    className="bg-transparent w-full font-medium text-slate-700"
+                                                />
+                                            </td>
+                                            {cols.map((c, i) => (
+                                                <td key={i} className="p-2 text-center">
+                                                    {c.type === 'bool' ? (
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newAccs = [...accounts];
+                                                                newAccs[idx][c.key] = !newAccs[idx][c.key];
+                                                                setAccounts(newAccs);
+                                                            }}
+                                                            className={`w-8 h-8 rounded-xl mx-auto flex items-center justify-center transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200 hover:bg-pink-100'}`}
+                                                        >
+                                                            {acc[c.key] && <i data-lucide="check" className="w-5 h-5 stroke-[4]"></i>}
+                                                        </button>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <input 
+                                                                value={acc[c.key]}
+                                                                onChange={(e) => {
+                                                                    const newAccs = [...accounts];
+                                                                    newAccs[idx][c.key] = e.target.value.replace(/\D/g, '');
+                                                                    setAccounts(newAccs);
+                                                                }}
+                                                                className="w-12 bg-white border border-pink-100 rounded-lg py-1 text-center font-mono text-pink-600"
+                                                                placeholder="-"
+                                                            />
+                                                            <span className="text-[10px] text-pink-300">D</span>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            ))}
+                                            <td className="p-2">
+                                                <button 
+                                                    onClick={() => {
+                                                        if(confirm('刪除這筆資料？'))
+                                                        setAccounts(accounts.filter(a => a.id !== acc.id));
+                                                    }}
+                                                    className="text-slate-200 hover:text-rose-400 transition-colors"
+                                                >
+                                                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button 
+                            onClick={() => setAccounts([...accounts, { id: Date.now().toString(), name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }])}
+                            className="w-full py-4 border-t border-dashed border-pink-100 text-pink-300 hover:bg-pink-50 hover:text-pink-500 transition-all font-bold flex items-center justify-center gap-2"
+                        >
+                            <i data-lucide="plus-circle" className="w-5 h-5"></i> 點擊新增成員
+                        </button>
+                    </div>
+
+                    <footer className="text-center text-[10px] text-pink-300 font-medium">
+                        資料將自動儲存於此瀏覽器中 • 若 GitHub 顯示亂碼請嘗試更換瀏覽器
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>

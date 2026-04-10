@@ -1,257 +1,390 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌸Puzzles & Survival</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }
-        input:focus { outline: none; box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.4); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .custom-shadow { box-shadow: 0 10px 30px -5px rgba(244, 114, 182, 0.2); }
-    </style>
-</head>
-<body class="bg-[#fff5f7] min-h-screen">
+import React, { useState, useEffect } from 'react';
+import { Check, X, RotateCcw, Plus, Trash2, Copy, Info, Cloud, CloudOff, Upload, Heart, Edit2, User } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
-    <div id="root"></div>
+/**
+ * 響應式優化版本：
+ * - 電腦端：顯示完整功能表格
+ * - 手機端：切換為卡片式佈局，確保不捲動也能看完所有任務
+ */
 
-    <!-- 核心 React 函式庫 - 使用穩定 CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+// 初始化 Firebase 服務
+let app, auth, db, appId;
+try {
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+  appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+} catch (e) {
+  console.error("Firebase 載入失敗", e);
+}
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+const defaultData = [
+  { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '23', mine1: '25' },
+  { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '10', mine1: '25' },
+  { id: '3', name: '煙火消逝的瞬間͜⁎✿', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '28', mine1: '25' },
+  { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
+  { id: '5', name: '拉拉山水蜜桃･ὢ･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
+  { id: '6', name: '好好吃的芭樂', daily: true, weekly: true, mall: true, base: true, ops: true, event: true, water: true, pack: '19', mine1: '19' },
+  { id: '10', name: '小小1號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '20' },
+  { id: '11', name: '小小2號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '6', mine1: '20' },
+  { id: '12', name: '小小3號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '22' },
+  { id: '13', name: '小小4號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '26', mine1: '20' },
+  { id: '14', name: '小小5號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '24', mine1: '11' },
+  { id: '15', name: '小小6號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '22', mine1: '22' },
+];
 
-        // 使用全新的 Key 避免受舊資料干擾
-        const KEYS = {
-            MAIN: 'GAME_TRACKER_DATA_STABLE_V100',
-            TITLE: 'GAME_TRACKER_TITLE_V100',
-            COLS: 'GAME_TRACKER_COLS_V100'
-        };
+const defaultColumns = [
+  { key: 'daily', label: '每日', type: 'bool' },
+  { key: 'weekly', label: '周任', type: 'bool' },
+  { key: 'mall', label: '商城', type: 'bool' },
+  { key: 'base', label: '基地', type: 'bool' },
+  { key: 'ops', label: '特作', type: 'bool' },
+  { key: 'event', label: '節日', type: 'bool' },
+  { key: 'water', label: '淨水', type: 'bool' },
+  { key: 'pack', label: '救援包', type: 'number' },
+  { key: 'mine1', label: '黃金礦', type: 'number' },
+];
 
-        const INITIAL_ACCOUNTS = [
-            { id: '1', name: '雪隨風飄', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '23', mine1: '25' },
-            { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '10', mine1: '25' },
-            { id: '3', name: '煙火消逝的瞬間͜⁎✿', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '28', mine1: '25' },
-            { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
-            { id: '5', name: '拉拉山水蜜桃･ὢ･', daily: true, weekly: false, mall: true, base: false, ops: true, event: false, water: true, pack: '', mine1: '' },
-            { id: '6', name: '好好吃的芭樂', daily: true, weekly: true, mall: true, base: true, ops: true, event: true, water: true, pack: '19', mine1: '19' },
-            { id: '10', name: '小小1號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '20' },
-            { id: '11', name: '小小2號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '6', mine1: '20' },
-            { id: '12', name: '小小3號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '20', mine1: '22' },
-            { id: '13', name: '小小4號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '26', mine1: '20' },
-            { id: '14', name: '小小5號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '24', mine1: '11' },
-            { id: '15', name: '小小6號', daily: true, weekly: false, mall: true, base: false, ops: true, event: true, water: true, pack: '22', mine1: '22' }
-        ];
+export default function App() {
+  const [accounts, setAccounts] = useState(defaultData);
+  const [appTitle, setAppTitle] = useState('🌸 進度助你');
+  const [taskColumns, setTaskColumns] = useState(defaultColumns);
+  const [user, setUser] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('offline');
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [notification, setNotification] = useState('');
 
-        const INITIAL_COLS = [
-            { key: 'daily', label: '每日', type: 'bool' },
-            { key: 'weekly', label: '周任', type: 'bool' },
-            { key: 'mall', label: '商城', type: 'bool' },
-            { key: 'base', label: '基地', type: 'bool' },
-            { key: 'ops', label: '特作', type: 'bool' },
-            { key: 'event', label: '節日', type: 'bool' },
-            { key: 'water', label: '淨水', type: 'bool' },
-            { key: 'pack', label: '救援包', type: 'number' },
-            { key: 'mine1', label: '黃金礦', type: 'number' }
-        ];
-
-        function App() {
-            // 讀取初始資料，加入容錯
-            const [accounts, setAccounts] = useState(() => {
-                try {
-                    const saved = localStorage.getItem(KEYS.MAIN);
-                    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
-                } catch (e) { return INITIAL_ACCOUNTS; }
-            });
-
-            const [appTitle, setAppTitle] = useState(() => localStorage.getItem(KEYS.TITLE) || '🌸末日任務🌸');
-            
-            const [cols, setCols] = useState(() => {
-                try {
-                    const saved = localStorage.getItem(KEYS.COLS);
-                    return saved ? JSON.parse(saved) : INITIAL_COLS;
-                } catch (e) { return INITIAL_COLS; }
-            });
-
-            const [notif, setNotif] = useState('');
-
-            // 全域儲存函式
-            const performUpdate = (updatedAccounts, updatedTitle, updatedCols) => {
-                if (updatedAccounts) {
-                    setAccounts(updatedAccounts);
-                    localStorage.setItem(KEYS.MAIN, JSON.stringify(updatedAccounts));
-                }
-                if (updatedTitle !== undefined) {
-                    setAppTitle(updatedTitle);
-                    localStorage.setItem(KEYS.TITLE, updatedTitle);
-                }
-                if (updatedCols) {
-                    setCols(updatedCols);
-                    localStorage.setItem(KEYS.COLS, JSON.stringify(updatedCols));
-                }
-            };
-
-            const handleToggle = (id, key) => {
-                const next = accounts.map(a => a.id === id ? { ...a, [key]: !a[key] } : a);
-                performUpdate(next);
-            };
-
-            const handleNumChange = (id, key, val) => {
-                const clean = val.replace(/\D/g, '');
-                const next = accounts.map(a => a.id === id ? { ...a, [key]: clean } : a);
-                performUpdate(next);
-            };
-
-            const handleNameChange = (id, val) => {
-                const next = accounts.map(a => a.id === id ? { ...a, name: val } : a);
-                performUpdate(next);
-            };
-
-            const handleReset = () => {
-                if (!window.confirm('確定重置每日進度？數字將自動 -1 天')) return;
-                const next = accounts.map(a => {
-                    const decr = (v) => {
-                        let n = parseInt(v);
-                        if (isNaN(n) || !v) return "";
-                        return n <= 1 ? "30" : (n - 1).toString();
-                    };
-                    return {
-                        ...a,
-                        daily: false, mall: false, water: false, base: false, ops: false, event: false,
-                        pack: decr(a.pack),
-                        mine1: decr(a.mine1)
-                    };
-                });
-                performUpdate(next);
-                setNotif('✨ 重置成功');
-                setTimeout(() => setNotif(''), 2000);
-            };
-
-            return (
-                <div className="max-w-6xl mx-auto p-4 md:p-10 space-y-6">
-                    {/* 通知氣泡 */}
-                    {notif && (
-                        <div className="fixed top-10 left-1/2 -translate-x-1/2 bg-pink-500 text-white px-8 py-2 rounded-full shadow-lg z-[100] font-bold animate-bounce">
-                            {notif}
-                        </div>
-                    )}
-
-                    {/* 頂部控制欄 */}
-                    <div className="bg-white/90 backdrop-blur rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-4 border border-white shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <span className="text-3xl">🌸</span>
-                            <input 
-                                value={appTitle}
-                                onChange={(e) => performUpdate(null, e.target.value)}
-                                className="text-2xl font-black text-pink-600 bg-transparent border-none w-full md:w-auto"
-                            />
-                        </div>
-                        <button 
-                            onClick={handleReset}
-                            className="bg-pink-500 hover:bg-pink-600 text-white px-8 py-3 rounded-full font-bold shadow-pink-200 shadow-lg flex items-center gap-2 transition-all active:scale-95"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>
-                            換日重置
-                        </button>
-                    </div>
-
-                    {/* 主要表格區域 */}
-                    <div className="bg-white rounded-[2rem] shadow-xl border border-pink-50 overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-pink-50">
-                                    <tr>
-                                        <th className="p-5 text-left text-pink-700 min-w-[150px] sticky left-0 bg-pink-50 z-10">成員</th>
-                                        {cols.map((c, idx) => (
-                                            <th key={c.key} className="p-4 text-center min-w-[100px]">
-                                                <input 
-                                                    value={c.label}
-                                                    onChange={(e) => {
-                                                        const newCols = [...cols];
-                                                        newCols[idx].label = e.target.value;
-                                                        performUpdate(null, undefined, newCols);
-                                                    }}
-                                                    className="bg-transparent text-center font-bold text-pink-500 w-full"
-                                                />
-                                            </th>
-                                        ))}
-                                        <th className="p-4 w-12"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-pink-50">
-                                    {accounts.map((acc) => (
-                                        <tr key={acc.id} className="hover:bg-pink-50/30 transition-colors">
-                                            <td className="p-4 sticky left-0 bg-white z-10">
-                                                <input 
-                                                    value={acc.name}
-                                                    onChange={(e) => handleNameChange(acc.id, e.target.value)}
-                                                    className="font-medium text-slate-700 bg-transparent w-full"
-                                                />
-                                            </td>
-                                            {cols.map(c => (
-                                                <td key={c.key} className="p-3 text-center">
-                                                    {c.type === 'bool' ? (
-                                                        <button 
-                                                            onClick={() => handleToggle(acc.id, c.key)}
-                                                            className={`w-10 h-10 rounded-2xl flex items-center justify-center mx-auto transition-all ${acc[c.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-100 text-slate-200'}`}
-                                                        >
-                                                            {acc[c.key] && (
-                                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                                            )}
-                                                        </button>
-                                                    ) : (
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <input 
-                                                                value={acc[c.key] || ''}
-                                                                onChange={(e) => handleNumChange(acc.id, c.key, e.target.value)}
-                                                                className="w-14 h-10 bg-white border border-pink-100 rounded-xl text-center font-mono text-pink-600 focus:border-pink-400"
-                                                                placeholder="-"
-                                                            />
-                                                            <span className="text-xs text-pink-300 font-bold">D</span>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            ))}
-                                            <td className="p-4">
-                                                <button 
-                                                    onClick={() => {
-                                                        if(confirm('刪除成員？')) performUpdate(accounts.filter(a => a.id !== acc.id));
-                                                    }}
-                                                    className="text-slate-200 hover:text-rose-400"
-                                                >
-                                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <button 
-                            onClick={() => {
-                                const newId = Date.now().toString();
-                                performUpdate([...accounts, { id: newId, name: '新帳號', daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '' }]);
-                            }}
-                            className="w-full py-6 text-pink-300 hover:text-pink-500 hover:bg-pink-50 transition-all font-bold flex items-center justify-center gap-2 border-t border-dashed border-pink-100"
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                            新增成員
-                        </button>
-                    </div>
-
-                    <footer className="text-center text-xs text-pink-300 font-medium">
-                        ✨ 穩定版 V1.0 - 您的資料已加密儲存於本機 ✨
-                    </footer>
-                </div>
-            );
+  useEffect(() => {
+    if (!auth) return;
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
+      } catch (e) { console.error("Auth error", e); }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+  useEffect(() => {
+    if (!user || !db) return;
+    setSyncStatus('syncing');
+    const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'gameData', 'main');
+    const unsubscribe = onSnapshot(docRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.accounts) setAccounts(data.accounts);
+        if (data.appTitle) setAppTitle(data.appTitle);
+        if (data.taskColumns) setTaskColumns(data.taskColumns);
+      } else {
+        setDoc(docRef, { accounts: defaultData, appTitle: '🌸 進度助你', taskColumns: defaultColumns });
+      }
+      setSyncStatus('synced');
+    }, (error) => {
+      console.error("雲端載入失敗", error);
+      setSyncStatus('offline');
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const saveData = (newAccounts, newTitle, newColumns) => {
+    const currentAccounts = newAccounts || accounts;
+    const currentTitle = newTitle || appTitle;
+    const currentColumns = newColumns || taskColumns;
+    
+    setAccounts([...currentAccounts]);
+    if (newTitle !== null) setAppTitle(currentTitle);
+    if (newColumns) setTaskColumns([...currentColumns]);
+
+    if (user && db) {
+      setSyncStatus('syncing');
+      const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'gameData', 'main');
+      setDoc(docRef, { 
+        accounts: currentAccounts, 
+        appTitle: currentTitle,
+        taskColumns: currentColumns
+      })
+        .then(() => setSyncStatus('synced'))
+        .catch(() => setSyncStatus('offline'));
+    }
+  };
+
+  const showNotify = (msg) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(''), 3000);
+  };
+
+  const toggleBool = (id, key) => {
+    saveData(accounts.map(acc => acc.id === id ? { ...acc, [key]: !acc[key] } : acc));
+  };
+
+  const updateNumber = (id, key, value) => {
+    const numOnly = value.replace(/\D/g, '');
+    saveData(accounts.map(acc => acc.id === id ? { ...acc, [key]: numOnly } : acc));
+  };
+
+  const updateName = (id, newName) => {
+    saveData(accounts.map(acc => acc.id === id ? { ...acc, name: newName } : acc));
+  };
+
+  const updateColumnLabel = (key, newLabel) => {
+    saveData(null, null, taskColumns.map(col => col.key === key ? { ...col, label: newLabel } : col));
+  };
+
+  const addAccount = () => {
+    const newId = Date.now().toString();
+    saveData([...accounts, {
+      id: newId, name: '新帳號',
+      daily: false, weekly: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: ''
+    }]);
+  };
+
+  const deleteAccount = (id) => {
+    if(window.confirm('確定刪除此帳號資料？')) {
+      saveData(accounts.filter(acc => acc.id !== id));
+    }
+  };
+
+  const resetDaily = () => {
+    if(!window.confirm('確定執行換日重置嗎？')) return;
+    const newAccounts = accounts.map(acc => {
+      const decr = (val) => {
+        if (!val) return '';
+        const num = parseInt(val, 10);
+        return isNaN(num) ? '' : (num <= 1 ? '30' : (num - 1).toString());
+      };
+      return {
+        ...acc,
+        daily: false, mall: false, water: false, base: false, ops: false, event: false,
+        pack: decr(acc.pack), mine1: decr(acc.mine1),
+      };
+    });
+    saveData(newAccounts);
+    showNotify('換日重置成功！💞');
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-100 text-slate-700 p-2 md:p-6 font-sans">
+      
+      {notification && (
+        <div className="fixed top-4 right-4 z-[100] bg-pink-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-bounce text-sm">
+          <Heart size={14} fill="currentColor" />
+          <span>{notification}</span>
+        </div>
+      )}
+
+      <div className="max-w-6xl mx-auto space-y-4">
+        {/* 控制欄 - 更加緊湊 */}
+        <div className="flex items-center justify-between gap-2 bg-white/70 backdrop-blur-md px-4 py-3 rounded-2xl shadow-sm border border-pink-200 sticky top-0 z-50">
+          <div className="flex items-center gap-2 flex-1 overflow-hidden">
+            <input
+              type="text"
+              value={appTitle}
+              onChange={(e) => saveData(null, e.target.value)}
+              className="bg-transparent border-none focus:outline-none text-lg md:text-xl font-black text-pink-600 w-full truncate"
+            />
+            {syncStatus === 'synced' && <Cloud size={14} className="text-pink-400 shrink-0 hidden sm:block" />}
+          </div>
+          
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={resetDaily}
+              className="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-full font-bold shadow-md transition-all active:scale-95 text-xs flex items-center gap-1"
+            >
+              <RotateCcw size={14} /> 換日
+            </button>
+            <button onClick={() => setShowImportModal(true)} className="p-2 text-pink-400 hover:bg-pink-100 rounded-full transition-colors">
+              <Upload size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* 電腦版表格佈局 (md 以上顯示) */}
+        <div className="hidden md:block bg-white/50 backdrop-blur-sm rounded-3xl shadow-xl border border-pink-100 overflow-hidden">
+          <div className="overflow-x-auto max-h-[70vh]">
+            <table className="w-full text-left border-collapse table-fixed">
+              <thead className="sticky top-0 z-30 bg-pink-50/95 backdrop-blur-md border-b border-pink-200">
+                <tr>
+                  <th className="px-4 py-4 font-bold text-pink-700 sticky left-0 bg-pink-50 z-40 w-[140px]">帳號</th>
+                  {taskColumns.map(col => (
+                    <th key={col.key} className="px-1 py-4 text-center">
+                      <input 
+                        type="text"
+                        value={col.label}
+                        onChange={(e) => updateColumnLabel(col.key, e.target.value)}
+                        className="bg-transparent border-none text-center font-bold text-pink-700 text-xs w-full focus:ring-1 focus:ring-pink-300 rounded"
+                      />
+                    </th>
+                  ))}
+                  <th className="w-12"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-pink-100/50">
+                {accounts.map((acc) => (
+                  <tr key={acc.id} className="hover:bg-white/60 transition-colors">
+                    <td className="px-4 py-2 sticky left-0 bg-white/90 backdrop-blur-sm z-20 shadow-sm">
+                      <input
+                        type="text"
+                        value={acc.name}
+                        onChange={(e) => updateName(acc.id, e.target.value)}
+                        className="bg-transparent border-none focus:ring-1 focus:ring-pink-200 rounded w-full py-1 text-slate-700 font-bold"
+                      />
+                    </td>
+                    {taskColumns.map(col => (
+                      <td key={col.key} className="px-1 py-2 text-center">
+                        {col.type === 'bool' ? (
+                          <button
+                            onClick={() => toggleBool(acc.id, col.key)}
+                            className={`w-8 h-8 mx-auto rounded-xl flex items-center justify-center transition-all shadow-sm ${
+                              acc[col.key] ? 'bg-pink-500 text-white shadow-pink-200 scale-105' : 'bg-slate-100 text-slate-200'
+                            }`}
+                          >
+                            {acc[col.key] && <Check size={18} strokeWidth={4} />}
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="text"
+                              value={acc[col.key] || ''}
+                              onChange={(e) => updateNumber(acc.id, col.key, e.target.value)}
+                              className="w-10 bg-white border border-pink-100 rounded-lg py-1 text-center text-pink-600 font-mono text-xs focus:ring-1 focus:ring-pink-400"
+                              placeholder="-"
+                            />
+                            <span className="text-[10px] text-pink-300 font-bold">D</span>
+                          </div>
+                        )}
+                      </td>
+                    ))}
+                    <td className="px-2 text-center">
+                      <button onClick={() => deleteAccount(acc.id)} className="text-slate-200 hover:text-rose-400 p-1">
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 手機版卡片佈局 (md 以下顯示) */}
+        <div className="md:hidden space-y-4 pb-20">
+          {accounts.map((acc) => (
+            <div key={acc.id} className="bg-white rounded-3xl p-4 shadow-md border border-pink-50 relative overflow-hidden">
+              <div className="flex items-center justify-between mb-3 border-b border-pink-50 pb-2">
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="bg-pink-100 p-1.5 rounded-full text-pink-500">
+                    <User size={16} />
+                  </div>
+                  <input
+                    type="text"
+                    value={acc.name}
+                    onChange={(e) => updateName(acc.id, e.target.value)}
+                    className="bg-transparent font-black text-slate-700 w-full focus:outline-none"
+                  />
+                </div>
+                <button onClick={() => deleteAccount(acc.id)} className="text-slate-200 p-1 ml-2">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              {/* 手機任務網格 - 改為多欄緊湊排列 */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {taskColumns.map(col => (
+                  <div key={col.key} className="flex flex-col items-center p-2 rounded-2xl bg-pink-50/30 border border-pink-50/50">
+                    <span className="text-[10px] text-pink-400 font-bold mb-1">{col.label}</span>
+                    {col.type === 'bool' ? (
+                      <button
+                        onClick={() => toggleBool(acc.id, col.key)}
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                          acc[col.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-white border border-pink-100 text-slate-100'
+                        }`}
+                      >
+                        {acc[col.key] && <Check size={18} strokeWidth={4} />}
+                      </button>
+                    ) : (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={acc[col.key] || ''}
+                          onChange={(e) => updateNumber(acc.id, col.key, e.target.value)}
+                          className="w-12 bg-white border border-pink-100 rounded-lg py-1.5 text-center text-pink-600 font-mono text-xs"
+                          placeholder="-"
+                        />
+                        <span className="absolute -right-1 -top-1 bg-pink-100 text-pink-500 text-[8px] px-1 rounded-full font-bold">D</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          
+          <button
+            onClick={addAccount}
+            className="w-full py-4 border-2 border-dashed border-pink-200 text-pink-300 rounded-3xl hover:bg-pink-50 flex items-center justify-center gap-2 font-bold transition-all"
+          >
+            <Plus size={20} /> 增加新帳號
+          </button>
+        </div>
+
+        {/* 底部浮動新增按鈕 (僅手機顯示) */}
+        <div className="md:hidden fixed bottom-6 right-6 z-50">
+          <button 
+            onClick={addAccount}
+            className="w-14 h-14 bg-pink-500 text-white rounded-full shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
+          >
+            <Plus size={28} strokeWidth={3} />
+          </button>
+        </div>
+      </div>
+
+      {/* 匯入彈窗 */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Upload className="text-pink-500" size={20} />
+                <h3 className="text-lg font-bold text-slate-800">資料匯入 / 備份</h3>
+              </div>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                className="w-full h-40 bg-pink-50 border border-pink-100 rounded-2xl p-4 text-xs font-mono focus:ring-2 focus:ring-pink-200 focus:outline-none"
+                placeholder='請在此貼上備份資料...'
+              ></textarea>
+              <p className="text-[10px] text-slate-400 mt-2 text-center">提示：您可以將這裡的內容複製出來作為手動備份。</p>
+            </div>
+            <div className="flex gap-2 p-4 bg-pink-50/50">
+              <button onClick={() => setShowImportModal(false)} className="flex-1 py-3 text-slate-500 font-bold text-sm">取消</button>
+              <button 
+                onClick={() => {
+                   try {
+                     const parsed = JSON.parse(importText);
+                     saveData(parsed.accounts || parsed, parsed.appTitle || null, parsed.taskColumns || null);
+                     setShowImportModal(false);
+                     setImportText('');
+                     showNotify('匯入完成！✨');
+                   } catch(e) { showNotify('格式錯誤 ❌'); }
+                }} 
+                className="flex-[2] py-3 bg-pink-500 text-white rounded-2xl font-bold shadow-lg shadow-pink-100 text-sm"
+              >
+                確認匯入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

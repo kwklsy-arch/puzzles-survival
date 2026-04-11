@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>🌸 末日進度追蹤</title>
+    <title>🌸 末日分組追蹤</title>
     <!-- 載入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 載入 React & ReactDOM -->
@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- 載入 Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- 載入 SortableJS 用於拖拽功能 -->
+    <!-- 載入 SortableJS -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         @keyframes pulse-red {
@@ -24,41 +24,90 @@
         }
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            touch-action: manipulation; /* 優化移動端觸控 */
+            touch-action: manipulation;
         }
-        /* 拖拽時的樣式 */
-        .sortable-ghost {
-            opacity: 0.3;
-            transform: scale(0.95);
-        }
-        .sortable-drag {
-            cursor: grabbing;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important;
-        }
+        /* 拖拽樣式 */
+        .sortable-ghost { opacity: 0.2; background: #fbcfe8 !important; }
+        .group-ghost { opacity: 0.3; border: 2px dashed #ec4899; }
+        
+        /* 隱藏滾動條但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 to-pink-50 min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
 
-        const defaultData = [
-            { id: '1', name: '雪隨風飄', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '23', mine1: '25', crystal: '30' },
-            { id: '2', name: '°ǒ雨醉伴花眠ǒ°', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '10', mine1: '25', crystal: '30' },
-            { id: '3', name: '煙火消逝的瞬間͜⁎✿', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '28', mine1: '25', crystal: '30' },
-            { id: '4', name: '福壽山蜜蘋果･ω･', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '', mine1: '', crystal: '' },
-            { id: '5', name: '拉拉山水蜜桃･ὢ･', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '', mine1: '', crystal: '' },
-            { id: '6', name: '好好吃的芭樂', daily: true, commander: true, hero: true, mall: true, base: true, ops: true, event: true, water: true, pack: '19', mine1: '19', crystal: '19' },
-            { id: '10', name: '小小1號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '20', mine1: '20', crystal: '20' },
-            { id: '11', name: '小小2號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '6', mine1: '20', crystal: '20' },
-            { id: '12', name: '小小3號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '20', mine1: '22', crystal: '22' },
-            { id: '13', name: '小小4號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '26', mine1: '20', crystal: '20' },
-            { id: '14', name: '小小5號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '24', mine1: '11', crystal: '11' },
-            { id: '15', name: '小小6號', daily: true, commander: false, hero: false, mall: true, base: true, ops: true, event: true, water: true, pack: '22', mine1: '22', crystal: '22' },
+        const STORAGE_KEY = 'puzzles_survival_v6_grouped';
+
+        // 預設分組資料
+        const initialGroups = [
+            {
+                id: 'g1',
+                title: '382服 WTF',
+                isOpen: true,
+                accounts: [
+                    { id: 'a1', name: '飄落的蒲公英 ҉͜', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a2', name: '☪淺月夜未央︎৯', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a3', name: '︎৯月夜舞盡離☪', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            },
+            {
+                id: 'g2',
+                title: '382服 KTV',
+                isOpen: true,
+                accounts: [
+                    { id: 'a4', name: '好好吃的芭樂', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            },
+            {
+                id: 'g3',
+                title: '464服 13K',
+                isOpen: true,
+                accounts: [
+                    { id: 'a5', name: '✿花落隨風飄❀', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            },
+            {
+                id: 'g4',
+                title: '538服 WTF',
+                isOpen: true,
+                accounts: [
+                    { id: 'a6', name: '小小1號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a7', name: '小小2號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a8', name: '小小3號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a9', name: '小小4號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a10', name: '小小5號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a11', name: '小小6號', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            },
+            {
+                id: 'g5',
+                title: '538服 mia',
+                isOpen: true,
+                accounts: [
+                    { id: 'a12', name: '雪隨風飄', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a13', name: '°ǒ雨醉伴花眠ǒ°', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a14', name: '煙火消逝的瞬間⁎✿', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a15', name: '福壽山蜜蘋果･ω･', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a16', name: '拉拉山水蜜桃･ὢ･', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            },
+            {
+                id: 'g6',
+                title: '538服 TPM',
+                isOpen: true,
+                accounts: [
+                    { id: 'a17', name: '༺జ南南の雲జ༻', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' },
+                    { id: 'a18', name: '༺జ南南の王牌జ༻', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }
+                ]
+            }
         ];
 
-        const taskCheckboxes = [
+        const taskKeys = [
             { key: 'daily', label: '每日' },
             { key: 'commander', label: '指揮官' },
             { key: 'hero', label: '英雄周' },
@@ -69,269 +118,395 @@
             { key: 'water', label: '淨水' },
         ];
 
-        const countdownFields = [
+        const countKeys = [
             { key: 'pack', label: '救援包' },
-            { key: 'mine1', label: '黃金礦' },
+            { key: 'mine1', label: '金礦' },
             { key: 'crystal', label: '晶核' },
         ];
 
         const Icons = {
-            Check: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
+            ChevronDown: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>,
+            ChevronRight: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>,
+            Check: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>,
             Rotate: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>,
-            Plus: ({size=20}) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
-            Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
-            User: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
-            Upload: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>,
-            Trophy: () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"></path></svg>,
-            Move: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-20"><polyline points="5 9 2 12 5 15"></polyline><polyline points="9 5 12 2 15 5"></polyline><polyline points="15 19 12 22 9 19"></polyline><polyline points="19 9 22 12 19 15"></polyline><line x1="2" y1="12" x2="22" y2="12"></line><line x1="12" y1="2" x2="12" y2="22"></line></svg>
+            Plus: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Trash: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+            Folder: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>,
+            Sync: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>,
+            Drag: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-30"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
         };
 
         function App() {
-            const [accounts, setAccounts] = useState(defaultData);
-            const [appTitle, setAppTitle] = useState('🌸 末日進度追蹤');
-            const [showImportModal, setShowImportModal] = useState(false);
-            const [importText, setImportText] = useState('');
+            const [groups, setGroups] = useState([]);
+            const [appTitle, setAppTitle] = useState('🌸 末日帳號管理系統');
             const [notification, setNotification] = useState('');
-            const gridRef = useRef(null);
-            const sortableInstance = useRef(null);
+            const [showModal, setShowModal] = useState(false);
+            const [backupText, setBackupText] = useState('');
+            
+            const containerRef = useRef(null);
+            const groupRefs = useRef({});
 
-            // 初始化時讀取 LocalStorage
+            // 初始化載入
             useEffect(() => {
-                const saved = localStorage.getItem('puzzles_survival_v5_sortable');
+                const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
                     try {
                         const parsed = JSON.parse(saved);
-                        if (parsed.accounts) setAccounts(parsed.accounts);
+                        if (Array.isArray(parsed.groups)) setGroups(parsed.groups);
                         if (parsed.appTitle) setAppTitle(parsed.appTitle);
-                    } catch(e) { console.error(e); }
+                    } catch(e) { setGroups(initialGroups); }
+                } else {
+                    setGroups(initialGroups);
                 }
             }, []);
 
-            // 初始化 SortableJS
-            useEffect(() => {
-                if (gridRef.current && !sortableInstance.current) {
-                    sortableInstance.current = Sortable.create(gridRef.current, {
-                        animation: 150,
-                        ghostClass: 'sortable-ghost',
-                        dragClass: 'sortable-drag',
-                        delay: 200, // 長按 200ms 觸發移動，避免干擾滾動
-                        delayOnTouchOnly: true,
-                        filter: 'input, button, textarea', // 排除這些元素的拖動觸發
-                        preventOnFilter: false,
-                        onEnd: (evt) => {
-                            const { oldIndex, newIndex } = evt;
-                            if (oldIndex === newIndex) return;
-                            
-                            setAccounts(prev => {
-                                const newData = [...prev];
-                                const [removed] = newData.splice(oldIndex, 1);
-                                newData.splice(newIndex, 0, removed);
-                                // 立即儲存新順序
-                                const updatedTitle = appTitle;
-                                localStorage.setItem('puzzles_survival_v5_sortable', JSON.stringify({ 
-                                    accounts: newData, 
-                                    appTitle: updatedTitle 
-                                }));
-                                return newData;
-                            });
-                        }
-                    });
-                }
-            }, [gridRef.current, appTitle]);
-
-            const saveData = (newAccounts, newTitle) => {
-                const updatedAcc = newAccounts || accounts;
-                const updatedTitle = newTitle !== undefined && newTitle !== null ? newTitle : appTitle;
-                setAccounts([...updatedAcc]);
-                setAppTitle(updatedTitle);
-                localStorage.setItem('puzzles_survival_v5_sortable', JSON.stringify({ 
-                    accounts: updatedAcc, 
-                    appTitle: updatedTitle 
-                }));
+            // 儲存函數
+            const persist = (newGroups, newTitle) => {
+                const g = newGroups || groups;
+                const t = newTitle !== undefined ? newTitle : appTitle;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ groups: g, appTitle: t }));
             };
 
             const showNotify = (msg) => {
                 setNotification(msg);
-                setTimeout(() => setNotification(''), 3000);
+                setTimeout(() => setNotification(''), 2500);
             };
 
-            const resetDaily = () => {
-                const newAccounts = accounts.map(acc => {
-                    const decr = (val) => {
-                        if (!val) return '';
-                        const num = parseInt(val, 10);
-                        if (isNaN(num)) return '';
-                        return (num - 1).toString();
-                    };
+            // 角色卡片邏輯
+            const updateAccount = (groupId, accId, fields) => {
+                const newGroups = groups.map(g => {
+                    if (g.id !== groupId) return g;
                     return {
-                        ...acc,
-                        daily: false, mall: false, water: false, base: false, ops: false, event: false,
-                        pack: decr(acc.pack), mine1: decr(acc.mine1), crystal: decr(acc.crystal),
+                        ...g,
+                        accounts: g.accounts.map(a => a.id === accId ? { ...a, ...fields } : a)
                     };
                 });
-                saveData(newAccounts);
-                showNotify('換日重置成功！🗓️');
+                setGroups(newGroups);
+                persist(newGroups);
             };
 
-            const getNumberStyle = (val) => {
-                if (!val) return 'bg-white border-slate-100';
-                const num = parseInt(val, 10);
-                if (isNaN(num)) return 'bg-white border-slate-100';
-                if (num <= 0) return 'animate-urgent border-red-500 text-red-600 cursor-pointer';
-                if (num === 1) return 'bg-orange-50 border-orange-300 text-orange-600';
-                return 'bg-white border-slate-200 text-pink-600';
+            // 換日重置
+            const handleResetAll = () => {
+                if(!confirm("確定要重置所有帳號的每日任務嗎？")) return;
+                const newGroups = groups.map(g => ({
+                    ...g,
+                    accounts: g.accounts.map(a => {
+                        const dec = (v) => {
+                            const n = parseInt(v, 10);
+                            return isNaN(n) ? '' : Math.max(0, n - 1).toString();
+                        };
+                        return {
+                            ...a,
+                            daily: false, mall: false, water: false, base: false, ops: false, event: false,
+                            pack: dec(a.pack), mine1: dec(a.mine1), crystal: dec(a.crystal)
+                        };
+                    })
+                }));
+                setGroups(newGroups);
+                persist(newGroups);
+                showNotify("所有分組已重置成功！🗓️");
             };
+
+            // 分組操作
+            const addGroup = () => {
+                const newGroups = [...groups, { id: Date.now().toString(), title: '新伺服器/聯盟', isOpen: true, accounts: [] }];
+                setGroups(newGroups);
+                persist(newGroups);
+            };
+
+            const addAccount = (groupId) => {
+                const newGroups = groups.map(g => {
+                    if (g.id !== groupId) return g;
+                    return {
+                        ...g,
+                        isOpen: true,
+                        accounts: [...g.accounts, { id: Date.now().toString(), name: '新角色', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }]
+                    };
+                });
+                setGroups(newGroups);
+                persist(newGroups);
+            };
+
+            // 初始化分組排序 (伺服器大項排序)
+            useEffect(() => {
+                if (containerRef.current && groups.length > 0) {
+                    Sortable.create(containerRef.current, {
+                        animation: 150,
+                        handle: '.group-handle',
+                        ghostClass: 'group-ghost',
+                        onEnd: (evt) => {
+                            const { oldIndex, newIndex } = evt;
+                            if (oldIndex === newIndex) return;
+                            setGroups(prev => {
+                                const next = [...prev];
+                                const [item] = next.splice(oldIndex, 1);
+                                next.splice(newIndex, 0, item);
+                                persist(next);
+                                return next;
+                            });
+                        }
+                    });
+                }
+            }, [groups.length]);
+
+            // 初始化組內角色排序
+            useEffect(() => {
+                groups.forEach(group => {
+                    const el = groupRefs.current[group.id];
+                    if (el && !el.hasSortable) {
+                        Sortable.create(el, {
+                            animation: 150,
+                            handle: '.acc-handle',
+                            ghostClass: 'sortable-ghost',
+                            group: 'accounts', // 允許跨組拖拽
+                            onEnd: (evt) => {
+                                // 由於 React 狀態管理的複雜性，跨組拖拽通常需要更複雜的處理
+                                // 這裡先實作組內排序
+                                if (evt.from === evt.to) {
+                                    const gid = evt.from.dataset.id;
+                                    setGroups(prev => {
+                                        const next = [...prev];
+                                        const targetGroup = next.find(g => g.id === gid);
+                                        const accs = [...targetGroup.accounts];
+                                        const [item] = accs.splice(evt.oldIndex, 1);
+                                        accs.splice(evt.newIndex, 0, item);
+                                        targetGroup.accounts = accs;
+                                        persist(next);
+                                        return next;
+                                    });
+                                }
+                            }
+                        });
+                        el.hasSortable = true;
+                    }
+                });
+            }, [groups]);
 
             return (
-                <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 select-none">
+                <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
                     {notification && (
-                        <div className="fixed top-4 right-4 z-[100] bg-pink-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 animate-bounce text-sm font-bold">
-                            <span>{notification}</span>
+                        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-pink-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 animate-bounce">
+                            {notification}
                         </div>
                     )}
 
-                    {/* 頂部導覽 */}
-                    <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-4 rounded-3xl shadow-sm border border-pink-100 sticky top-4 z-50">
-                        <input
-                            type="text"
-                            value={appTitle}
-                            onChange={(e) => saveData(null, e.target.value)}
-                            className="bg-transparent border-none focus:outline-none text-xl md:text-2xl font-black text-pink-600 w-full text-center md:text-left select-text"
-                        />
+                    {/* Header */}
+                    <div className="bg-white/90 backdrop-blur-md p-5 rounded-[2rem] shadow-sm border border-pink-100 flex flex-col md:flex-row items-center justify-between gap-4 sticky top-4 z-50">
                         <div className="flex items-center gap-3 w-full md:w-auto">
-                            <button onClick={resetDaily} className="flex-1 md:flex-none bg-pink-500 hover:bg-pink-600 text-white px-6 py-2.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+                            <div className="bg-pink-100 p-2 rounded-xl text-pink-500"><Icons.Folder /></div>
+                            <input 
+                                type="text" 
+                                value={appTitle} 
+                                onChange={(e) => {setAppTitle(e.target.value); persist(null, e.target.value);}}
+                                className="bg-transparent font-black text-xl text-slate-700 outline-none w-full"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <button onClick={handleResetAll} className="flex-1 md:flex-none bg-pink-500 hover:bg-pink-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
                                 <Icons.Rotate /> 換日重置
                             </button>
-                            <button onClick={() => setShowImportModal(true)} className="p-2.5 text-pink-400 hover:bg-pink-100 rounded-2xl transition-colors bg-white border border-pink-50">
-                                <Icons.Upload />
+                            <button onClick={() => setShowModal(true)} className="p-2.5 bg-white border border-pink-100 text-pink-400 rounded-xl hover:bg-pink-50 transition-colors">
+                                <Icons.Sync />
                             </button>
                         </div>
                     </div>
 
-                    <div className="text-center md:text-left">
-                        <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-3 py-1 rounded-full uppercase tracking-widest">
-                            💡 電腦可直接拖拽 / 手機長按 0.2 秒後可移動卡片
+                    <div className="flex justify-between items-center px-2">
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase tracking-tighter">
+                            按住 ≡ 拖拽排序 / 點擊標題收納分組
                         </span>
+                        <button onClick={addGroup} className="text-pink-500 text-xs font-bold flex items-center gap-1 hover:underline">
+                            <Icons.Plus /> 新增伺服器分組
+                        </button>
                     </div>
 
-                    {/* 卡片容器 (SortableJS 目標) */}
-                    <div ref={gridRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 min-h-[100px]">
-                        {accounts.map((acc) => (
-                            <div key={acc.id} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-pink-50 hover:shadow-md transition-all cursor-default">
-                                {/* 角色頭部 */}
-                                <div className="flex items-center justify-between mb-4 border-b border-pink-50 pb-3">
-                                    <div className="flex items-center gap-2 flex-1">
-                                        <div className="text-pink-400"><Icons.User /></div>
+                    {/* Groups List */}
+                    <div ref={containerRef} className="space-y-4">
+                        {groups.map(group => (
+                            <div key={group.id} className="bg-white/50 border border-white rounded-[2rem] overflow-hidden shadow-sm transition-all">
+                                {/* Group Header */}
+                                <div className="flex items-center p-4 bg-white/80 border-b border-pink-50 group-handle cursor-move">
+                                    <div className="mr-3 text-slate-300 group-handle cursor-grab"><Icons.Drag /></div>
+                                    <div 
+                                        className="flex-1 flex items-center gap-2 cursor-pointer"
+                                        onClick={() => {
+                                            const newGroups = groups.map(g => g.id === group.id ? {...g, isOpen: !g.isOpen} : g);
+                                            setGroups(newGroups);
+                                            persist(newGroups);
+                                        }}
+                                    >
+                                        <div className="text-pink-400">
+                                            {group.isOpen ? <Icons.ChevronDown /> : <Icons.ChevronRight />}
+                                        </div>
                                         <input 
                                             type="text" 
-                                            value={acc.name} 
-                                            onChange={(e) => saveData(accounts.map(a => a.id === acc.id ? {...a, name: e.target.value} : a))} 
-                                            className="font-black text-slate-700 w-full focus:outline-none bg-transparent text-lg select-text" 
+                                            value={group.title}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onChange={(e) => {
+                                                const newGroups = groups.map(g => g.id === group.id ? {...g, title: e.target.value} : g);
+                                                setGroups(newGroups);
+                                                persist(newGroups);
+                                            }}
+                                            className="bg-transparent font-black text-slate-600 outline-none w-full"
                                         />
+                                        <span className="text-[10px] bg-pink-100 text-pink-500 px-2 py-0.5 rounded-full font-bold">
+                                            {group.accounts.length}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Icons.Move />
                                         <button 
-                                            onClick={() => saveData(accounts.filter(a => a.id !== acc.id))} 
-                                            className="text-slate-200 hover:text-rose-400 p-1 transition-colors"
+                                            onClick={() => addAccount(group.id)}
+                                            className="p-1.5 text-pink-400 hover:bg-pink-100 rounded-lg"
+                                        >
+                                            <Icons.Plus />
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                if(confirm(`刪除「${group.title}」及其下所有帳號？`)) {
+                                                    const newGroups = groups.filter(g => g.id !== group.id);
+                                                    setGroups(newGroups);
+                                                    persist(newGroups);
+                                                }
+                                            }}
+                                            className="p-1.5 text-slate-300 hover:text-red-400 rounded-lg"
                                         >
                                             <Icons.Trash />
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* 任務按鈕組 */}
-                                <div className="grid grid-cols-4 gap-2 mb-4">
-                                    {taskCheckboxes.map(task => (
-                                        <div key={task.key} className="flex flex-col items-center">
-                                            <span className={`text-[10px] font-bold mb-1 truncate w-full text-center ${acc[task.key] ? 'text-pink-500' : 'text-slate-400'}`}>
-                                                {task.label}
-                                            </span>
-                                            <button 
-                                                onClick={() => saveData(accounts.map(a => a.id === acc.id ? {...a, [task.key]: !a[task.key]} : a))} 
-                                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${acc[task.key] ? 'bg-pink-500 text-white shadow-md' : 'bg-slate-50 text-slate-100 border border-slate-100'}`}
-                                            >
-                                                {acc[task.key] && <Icons.Check />}
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* 底部倒數組 */}
-                                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-pink-50">
-                                    {countdownFields.map(field => (
-                                        <div key={field.key} className="flex flex-col items-center">
-                                            <span className="text-[10px] font-black text-slate-400 mb-1">{field.label}</span>
-                                            <div 
-                                                className={`relative flex items-center justify-center w-full rounded-xl border-2 transition-all h-10 ${getNumberStyle(acc[field.key])}`}
-                                                onClick={() => {
-                                                    if (parseInt(acc[field.key], 10) <= 0) {
-                                                        saveData(accounts.map(a => a.id === acc.id ? {...a, [field.key]: '30'} : a));
-                                                        showNotify(`領取成功！${field.label}已重置`);
-                                                    }
-                                                }}
-                                            >
-                                                <input 
-                                                    type="text" 
-                                                    value={(parseInt(acc[field.key], 10) <= 0) ? '領取' : (acc[field.key] || '')} 
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        if (val === '領取') return;
-                                                        saveData(accounts.map(a => a.id === acc.id ? {...a, [field.key]: val.replace(/\D/g,'')} : a));
-                                                    }} 
-                                                    className="w-full bg-transparent text-center font-black text-xs outline-none select-text" 
-                                                    placeholder="-"
-                                                />
-                                                {(acc[field.key] && parseInt(acc[field.key], 10) > 0) && (
-                                                    <span className="absolute right-0.5 bottom-0.5 text-[8px] opacity-40">D</span>
-                                                )}
-                                                {(parseInt(acc[field.key], 10) <= 0) && (
-                                                    <div className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 shadow-sm scale-110">
-                                                        <Icons.Trophy />
+                                {/* Group Content (Accounts) */}
+                                {group.isOpen && (
+                                    <div 
+                                        ref={el => groupRefs.current[group.id] = el}
+                                        data-id={group.id}
+                                        className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+                                    >
+                                        {group.accounts.map(acc => (
+                                            <div key={acc.id} className="bg-white rounded-2xl p-4 border border-pink-50 shadow-sm flex flex-col gap-3 relative">
+                                                {/* Card Header */}
+                                                <div className="flex items-center justify-between pb-2 border-b border-pink-50">
+                                                    <div className="flex items-center gap-2 flex-1">
+                                                        <div className="acc-handle cursor-grab mr-1"><Icons.Drag /></div>
+                                                        <input 
+                                                            type="text" 
+                                                            value={acc.name}
+                                                            onChange={(e) => updateAccount(group.id, acc.id, { name: e.target.value })}
+                                                            className="font-bold text-slate-700 outline-none w-full text-sm bg-transparent"
+                                                        />
                                                     </div>
-                                                )}
+                                                    <button 
+                                                        onClick={() => {
+                                                            const newGroups = groups.map(g => g.id === group.id ? {...g, accounts: g.accounts.filter(a => a.id !== acc.id)} : g);
+                                                            setGroups(newGroups);
+                                                            persist(newGroups);
+                                                        }}
+                                                        className="text-slate-200 hover:text-red-400"
+                                                    >
+                                                        <Icons.Trash />
+                                                    </button>
+                                                </div>
+
+                                                {/* Tasks */}
+                                                <div className="grid grid-cols-4 gap-1.5">
+                                                    {taskKeys.map(t => (
+                                                        <div key={t.key} className="flex flex-col items-center gap-1">
+                                                            <span className="text-[9px] text-slate-400 font-bold">{t.label}</span>
+                                                            <button 
+                                                                onClick={() => updateAccount(group.id, acc.id, { [t.key]: !acc[t.key] })}
+                                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${acc[t.key] ? 'bg-pink-500 text-white' : 'bg-slate-50 text-transparent border border-slate-100'}`}
+                                                            >
+                                                                <Icons.Check />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {/* Countdowns */}
+                                                <div className="grid grid-cols-3 gap-2 mt-1">
+                                                    {countKeys.map(c => {
+                                                        const num = parseInt(acc[c.key], 10);
+                                                        const isUrgent = !isNaN(num) && num <= 0;
+                                                        return (
+                                                            <div key={c.key} className="flex flex-col items-center gap-1">
+                                                                <span className="text-[9px] text-slate-400 font-bold">{c.label}</span>
+                                                                <div 
+                                                                    onClick={() => {
+                                                                        if(isUrgent) {
+                                                                            updateAccount(group.id, acc.id, { [c.key]: '30' });
+                                                                            showNotify(`${acc.name} 領取成功！`);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-full h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer ${isUrgent ? 'animate-urgent border-red-500 text-red-600' : 'bg-white border-slate-100'}`}
+                                                                >
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={isUrgent ? '領' : (acc[c.key] || '')}
+                                                                        onChange={(e) => updateAccount(group.id, acc.id, { [c.key]: e.target.value.replace(/\D/g,'') })}
+                                                                        className="w-full bg-transparent text-center text-[10px] font-black outline-none"
+                                                                        placeholder="-"
+                                                                    />
+                                                                    {!isUrgent && acc[c.key] && <span className="text-[8px] opacity-30 absolute right-2">D</span>}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        ))}
+                                        {group.accounts.length === 0 && (
+                                            <div className="col-span-full py-8 text-center text-slate-300 text-xs italic">
+                                                目前沒有帳號，點擊上方 + 新增
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
 
-                    {/* 新增按鈕 (放在 grid 之外，避免參與排序) */}
-                    <div className="flex justify-center pt-4">
-                        <button onClick={() => {
-                            const newId = Date.now().toString();
-                            saveData([...accounts, { id: newId, name: '新角色', daily: false, commander: false, hero: false, mall: false, base: false, ops: false, event: false, water: false, pack: '', mine1: '', crystal: '' }]);
-                        }} className="w-full max-w-md py-6 border-4 border-dashed border-pink-100 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 text-pink-200 hover:text-pink-400 hover:border-pink-300 transition-all bg-white/40 hover:bg-white active:scale-95">
-                            <Icons.Plus size={40} />
-                            <span className="font-black">新增角色卡片</span>
-                        </button>
-                    </div>
-
-                    {/* 備份彈窗 */}
-                    {showImportModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-                            <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-sm p-8">
-                                <h3 className="text-pink-500 font-black mb-6 flex items-center gap-2 text-xl"><Icons.Upload /> 備份與還原</h3>
-                                <textarea
-                                    value={importText}
-                                    onChange={(e) => setImportText(e.target.value)}
-                                    className="w-full h-48 bg-slate-50 border border-slate-100 rounded-2xl p-4 text-xs font-mono mb-6 focus:ring-2 focus:ring-pink-200 outline-none select-text"
-                                    placeholder='貼上備份代碼...'
-                                ></textarea>
+                    {/* Backup Modal */}
+                    {showModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                            <div className="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl">
+                                <h3 className="text-pink-500 font-black text-xl mb-4 flex items-center gap-2"><Icons.Sync /> 資料備份與同步</h3>
+                                <p className="text-xs text-slate-400 mb-4 leading-relaxed">可將代碼複製到手機，或從手機備份還原到此設備。</p>
+                                <textarea 
+                                    className="w-full h-40 bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[10px] font-mono mb-6 outline-none focus:ring-2 focus:ring-pink-200"
+                                    value={backupText}
+                                    onChange={(e) => setBackupText(e.target.value)}
+                                    placeholder="貼上或生成代碼..."
+                                />
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button onClick={() => { setImportText(JSON.stringify({accounts})); showNotify('已生成代碼！'); }} className="py-4 text-pink-600 font-black text-sm bg-white rounded-2xl border border-pink-100 hover:bg-pink-50">複製備份</button>
-                                    <button onClick={() => {
-                                        try {
-                                            const p = JSON.parse(importText);
-                                            saveData(p.accounts);
-                                            setShowImportModal(false);
-                                            showNotify('還原成功！✨');
-                                        } catch(e) { showNotify('代碼錯誤！'); }
-                                    }} className="py-4 bg-pink-500 text-white rounded-2xl font-black text-sm shadow-lg shadow-pink-100">執行還原</button>
+                                    <button 
+                                        onClick={() => {
+                                            const code = JSON.stringify({ groups, appTitle });
+                                            setBackupText(code);
+                                            navigator.clipboard.writeText(code).then(() => showNotify("已複製備份代碼！"));
+                                        }}
+                                        className="py-3 bg-white border border-pink-200 text-pink-500 font-bold rounded-xl hover:bg-pink-50 transition-colors"
+                                    >
+                                        複製備份
+                                    </button>
+                                    <button 
+                                        onClick={() => {
+                                            try {
+                                                const p = JSON.parse(backupText);
+                                                if(p.groups) {
+                                                    setGroups(p.groups);
+                                                    if(p.appTitle) setAppTitle(p.appTitle);
+                                                    setShowModal(false);
+                                                    persist(p.groups, p.appTitle);
+                                                    showNotify("同步成功！✨");
+                                                }
+                                            } catch(e) { showNotify("代碼無效！"); }
+                                        }}
+                                        className="py-3 bg-pink-500 text-white font-bold rounded-xl shadow-lg shadow-pink-100 hover:bg-pink-600 transition-colors"
+                                    >
+                                        執行還原
+                                    </button>
                                 </div>
-                                <button onClick={() => setShowImportModal(false)} className="w-full mt-6 text-slate-400 text-xs font-bold">關閉彈窗</button>
+                                <button onClick={() => setShowModal(false)} className="w-full mt-6 text-slate-300 text-xs font-bold">關閉視窗</button>
                             </div>
                         </div>
                     )}

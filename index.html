@@ -263,8 +263,8 @@
                                                         {/* 小按鈕格 */}
                                                         <div className="grid grid-cols-4 gap-2">
                                                             {[
-                                                                {k:'daily', l:'日常'}, {k:'cmd', l:'扭蛋'}, {k:'hero', l:'巔峰'}, {k:'mall', l:'領獎'},
-                                                                {k:'seed', l:'種子'}, {k:'spec', l:'特種'}, {k:'pass', l:'通票'}, {k:'water', l:'淨水'}
+                                                                {k:'daily', l:'日常'}, {k:'cmd', l:'扭蛋'}, {k:'hero', l:'巔峰'}, {k:'mall', l:'商城領獎'},
+                                                                {k:'seed', l:'種子'}, {k:'spec', l:'特種'}, {k:'pass', l:'通行證'}, {k:'water', l:'淨水'}
                                                             ].map(item => (
                                                                 <button key={item.k} onClick={() => toggleAcc(g.id, a.id, item.k)} className={`aspect-square rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${a[item.k] ? 'bg-slate-800 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
                                                                     <span className="text-[9px] font-black">{item.l}</span>
